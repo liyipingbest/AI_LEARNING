@@ -12,6 +12,8 @@ import numpy as np
 (x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
 print(x_train.shape)  # 输出训练集的形状，验证数据加载是否正确
 
+print(f'x_test = {x_test[0]} \n\n')
+
 # 创建一个 5x5 的网格，用于显示训练集中的前 25 个图像
 # 使用 Matplotlib 库进行可视化，帮助理解数据的分布和样本特征
 fig, axes = plt.subplots(nrows=5, ncols=5, figsize=(20,20))
@@ -31,9 +33,13 @@ plt.show()  # 显示图像网格
 # 使用 Keras 的 Sequential API 构建模型，按层次顺序添加神经网络层
 model = Sequential([
     layers.Flatten(input_shape=(28, 28, 1)),  # 输入层：将 28x28 的图像展平为一维数组，便于后续处理
-    layers.Dense(25, activation='relu', name='layer1'),  # 第一隐藏层：25 个神经元，激活函数为 ReLU，用于提取特征
-    layers.Dense(15, activation='relu', name='layer2'),  # 第二隐藏层：15 个神经元，激活函数为 ReLU，进一步提取特征
-    layers.Dense(10, activation='softmax', name='layer3')  # 输出层：10 个神经元，激活函数为 Softmax，用于分类
+    layers.Dense(150, activation='sigmoid', name='layer1'),  # 第一隐藏层：25 个神经元，激活函数为 ReLU，用于提取特征
+    layers.Dense(100, activation='sigmoid', name='layer2'),  # 第一隐藏层：25 个神经元，激活函数为 ReLU，用于提取特征
+    layers.Dense(80, activation='sigmoid', name='layer3'),  # 第一隐藏层：25 个神经元，激活函数为 ReLU，用于提取特征
+    layers.Dense(60, activation='sigmoid', name='layer4'),  # 第一隐藏层：25 个神经元，激活函数为 ReLU，用于提取特征
+    layers.Dense(40, activation='sigmoid', name='layer5'),  # 第二隐藏层：15 个神经元，激活函数为 ReLU，进一步提取特征
+    layers.Dense(40, activation='sigmoid', name='layer6'),  # 第二隐藏层：15 个神经元，激活函数为 ReLU，进一步提取特征
+    layers.Dense(10, activation='softmax', name='layer7')  # 输出层：10 个神经元，激活函数为 Softmax，用于分类
 ], name='MINST_Model')
 
 # 打印模型的结构摘要
