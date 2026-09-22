@@ -1,0 +1,2650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>从 Bahdanau 到 Transformer · 注意力是怎么长出来的</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:74px}
+:root{
+  --bg:#f5f6fb; --card:#ffffff; --ink:#1b2033; --ink2:#565e78; --ink3:#8b93a9;
+  --line:#e5e8f2; --line2:#eef1f8;
+  --acc:#4f46e5; --acc-d:#3730a3; --acc-l:#eef0ff;
+  --vio:#7c3aed; --warm:#f59e0b; --warm-l:#fff7e6;
+  --teal:#0d9488; --teal-l:#e6fffb; --red:#e11d48; --red-l:#fff1f4;
+  --sky:#0ea5e9;
+  --r:16px; --sh:0 1px 2px rgba(20,25,60,.05),0 8px 24px -12px rgba(20,25,60,.16);
+}
+body{
+  margin:0;background:var(--bg);color:var(--ink);line-height:1.85;font-size:16.5px;
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+h1,h2,h3,h4{line-height:1.35;font-weight:800;letter-spacing:-.01em}
+p{margin:0 0 1em}
+a{color:var(--acc)}
+code,.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
+
+/* ---------- 阅读进度条 ---------- */
+#progress{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,var(--acc),var(--vio),var(--warm));z-index:99;transition:width .1s linear}
+
+/* ---------- 顶部导航 ---------- */
+nav#top{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.86);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+nav#top .navin{max-width:1060px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:18px}
+nav#top .brand{font-weight:800;font-size:14.5px;white-space:nowrap;letter-spacing:.01em}
+nav#top .brand i{font-style:normal;color:var(--acc)}
+nav#top .links{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav#top .links::-webkit-scrollbar{display:none}
+nav#top a.lk{font-size:13.5px;color:var(--ink2);text-decoration:none;padding:5px 10px;border-radius:9px;white-space:nowrap;transition:.18s}
+nav#top a.lk:hover{background:var(--acc-l);color:var(--acc)}
+
+/* ---------- 布局 ---------- */
+.wrap{max-width:1000px;margin:0 auto;padding:0 20px}
+section{padding:66px 0 10px}
+.chap{scroll-margin-top:80px}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--acc);background:var(--acc-l);padding:4px 11px;border-radius:100px;margin-bottom:14px}
+.eyebrow.warm{color:#b45309;background:var(--warm-l)}
+.eyebrow.teal{color:#0f766e;background:var(--teal-l)}
+.eyebrow.red{color:#be123c;background:var(--red-l)}
+h2{font-size:clamp(23px,3.4vw,31px);margin:0 0 8px}
+h3{font-size:19px;margin:34px 0 10px}
+h4{font-size:16px;margin:22px 0 8px;color:var(--acc-d)}
+.sub{color:var(--ink2);font-size:16px;margin-bottom:22px}
+.lead{font-size:17.5px;color:var(--ink2)}
+.muted{color:var(--ink3);font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:24px 26px;box-shadow:var(--sh);margin:18px 0}
+.card.tight{padding:18px 20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:760px){.grid2,.grid3{grid-template-columns:1fr}}
+.kv{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.kv b{display:block;font-size:14px;margin-bottom:4px}
+.kv span{font-size:14px;color:var(--ink2);line-height:1.7}
+.kv span b,.kv span strong,.kv span code{display:inline;font-size:inherit;margin:0;line-height:inherit}
+.kv span b,.kv span strong{font-weight:800;color:var(--ink)}
+mark{background:linear-gradient(180deg,transparent 58%,#ffe9a8 58%);color:inherit;padding:0 1px;font-weight:600}
+.pill{display:inline-block;font-size:12.5px;font-weight:700;padding:2px 9px;border-radius:100px;background:var(--acc-l);color:var(--acc)}
+.pill.g{background:#e9fbf0;color:#047857}
+.pill.r{background:var(--red-l);color:#be123c}
+.pill.w{background:var(--warm-l);color:#b45309}
+
+/* ---------- 按钮 ---------- */
+.btn{font:inherit;font-size:14px;font-weight:600;padding:7px 15px;border-radius:10px;border:1px solid var(--line);
+  background:#fff;color:var(--ink2);cursor:pointer;transition:.16s;white-space:nowrap}
+.btn:hover{border-color:#c6cbe0;color:var(--ink);transform:translateY(-1px)}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff;box-shadow:0 6px 16px -6px rgba(79,70,229,.7)}
+.btn.primary:hover{background:var(--acc-d)}
+.btn.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* ---------- Hero ---------- */
+header.hero{position:relative;background:radial-gradient(1200px 500px at 20% -10%,#2a2f6b 0%,#14162e 45%,#0d0e1c 100%);color:#fff;overflow:hidden;padding:78px 0 84px}
+header.hero::after{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:46px 46px;pointer-events:none}
+header.hero .wrap{position:relative;z-index:2}
+header.hero h1{font-size:clamp(29px,5.2vw,50px);margin:16px 0 14px;letter-spacing:-.02em}
+header.hero h1 em{font-style:normal;background:linear-gradient(96deg,#8b8cff,#c084fc 45%,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent}
+header.hero p.lead{color:#b9bfe0;max-width:660px;font-size:17px}
+.tagline{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#8b8cff;font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:26px}
+.chip{font-size:13px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#dfe3ff;padding:5px 12px;border-radius:100px}
+#heroCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:1;opacity:.95}
+.byt{font-size:12.5px;color:#7f87b5;margin-top:26px;font-family:ui-monospace,monospace}
+
+/* ---------- 流程图 / token ---------- */
+.toks{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.tok{background:#fff;border:1.5px solid var(--line);border-radius:9px;padding:5px 11px;font-size:14.5px;font-weight:600;transition:.25s;position:relative}
+.tok.dim{opacity:.32}
+.tok.act{border-color:var(--acc);background:var(--acc);color:#fff;box-shadow:0 6px 18px -8px var(--acc);transform:translateY(-2px)}
+.tok.emit{border-color:var(--teal);background:var(--teal);color:#fff}
+.flow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center}
+.arrowline{flex:1;min-width:60px;height:2px;background:linear-gradient(90deg,#c7cbe4,#8b90ff);position:relative;border-radius:2px}
+.arrowline::after{content:"";position:absolute;right:-1px;top:-4px;border-left:8px solid #8b90ff;border-top:5px solid transparent;border-bottom:5px solid transparent}
+
+/* ---------- 公式 ---------- */
+.formula{background:#fbfcff;border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:10px;padding:15px 18px;margin:14px 0;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;overflow-x:auto;line-height:2.1}
+.formula .fk{color:var(--acc);font-weight:700}
+.formula .fv{color:var(--teal);font-weight:700}
+.formula .fq{color:#b45309;font-weight:700}
+.formula .cm{color:var(--ink3);font-size:13.5px;font-family:inherit}
+.frac{display:inline-flex;flex-direction:column;vertical-align:-0.55em;text-align:center;margin:0 .28em;line-height:1.25}
+.frac>span:first-child{border-bottom:1.5px solid currentColor;padding:0 .34em}
+
+/* ---------- 演示容器 ---------- */
+.demo{background:linear-gradient(180deg,#fdfdff,#f8f9ff);border:1px solid var(--line);border-radius:18px;padding:18px 20px 22px;margin:20px 0;box-shadow:var(--sh)}
+.demo-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.demo-title{font-size:14px;font-weight:800;letter-spacing:.02em;color:var(--acc-d);display:flex;align-items:center;gap:8px}
+.demo-title::before{content:"";width:8px;height:8px;border-radius:3px;background:linear-gradient(135deg,var(--acc),var(--vio))}
+.demo-ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.stage{background:#fff;border:1px solid var(--line2);border-radius:14px;padding:18px}
+.readout{font-size:13.5px;color:var(--ink2);margin-top:12px;min-height:44px;background:#fff;border:1px dashed var(--line);border-radius:10px;padding:10px 13px;line-height:1.75}
+.readout b{color:var(--acc)}
+
+/* ---------- 演示1：背包 ---------- */
+.bn-stage{display:grid;grid-template-columns:1.25fr auto .9fr;gap:18px;align-items:center}
+@media(max-width:820px){.bn-stage{grid-template-columns:1fr;gap:14px}}
+.bag{width:100%;max-width:190px;margin:0 auto;height:170px;border:2px solid var(--line);border-radius:12px;background:#fbfcff;
+  position:relative;display:flex;flex-direction:column;padding:18px 4px 4px;overflow:hidden}
+.bag i{display:block;flex:0 0 auto;height:0;border-radius:5px;margin:1.5px 0;opacity:0;transition:height .32s cubic-bezier(.3,1.4,.5,1),opacity .3s;
+  background:linear-gradient(90deg,#6366f1,#8b5cf6)}
+.bag i.over{background:linear-gradient(90deg,#f43f5e,#fb7185)}
+.bag .cap{position:absolute;left:0;right:0;top:2px;font-size:10.5px;color:var(--ink3);text-align:center;letter-spacing:.02em}
+.bagwrap{text-align:center}
+.bagcap{font-size:12.5px;color:var(--ink2);margin-top:8px;font-weight:600}
+.srcbox{display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start}
+.srcbox .tok{font-size:13.5px;padding:4px 9px}
+.srcbox .tok .cost{position:absolute;top:-9px;right:-6px;font-size:9.5px;background:var(--warm);color:#fff;border-radius:100px;padding:0 5px;font-weight:700}
+
+/* ---------- 演示2：Bahdanau 翻译 ---------- */
+.tr-panel{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:820px){.tr-panel{grid-template-columns:1fr}}
+.tr-col h5{margin:0 0 9px;font-size:12.5px;letter-spacing:.03em;color:var(--ink3);font-weight:700}
+.heat.mini{max-width:600px;margin:0 auto}
+.bar{height:7px;border-radius:4px;background:#eef0f8;overflow:hidden;transition:.3s}
+.bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--acc),var(--vio));transition:width .45s cubic-bezier(.3,1,.4,1)}
+.bar.warm>i{background:linear-gradient(90deg,#f59e0b,#f97316)}
+.bar.teal>i{background:linear-gradient(90deg,#0d9488,#14b8a6)}
+.scorelist{display:flex;flex-direction:column;gap:5px;max-height:260px;overflow:auto;padding-right:4px}
+.scorerow{display:grid;grid-template-columns:70px 1fr 1fr 40px;gap:8px;align-items:center;font-size:12.5px;transition:.25s;border-radius:7px;padding:2px 4px}
+.scorerow.hot{background:#f2f3ff}
+.scorerow .w{text-align:right;color:var(--ink3);font-family:ui-monospace,monospace;font-size:11.5px}
+.scorerow .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctxstrip{display:flex;gap:3px;flex-wrap:wrap;margin-top:8px}
+.ctxstrip i{width:13px;height:26px;border-radius:3px;background:#e9ebf5;display:block;transition:.3s}
+.steps3{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.stepchip{font-size:12.5px;padding:4px 11px;border-radius:100px;background:#eef0f8;color:var(--ink3);font-weight:700;transition:.25s}
+.stepchip.on{background:var(--acc);color:#fff;box-shadow:0 6px 14px -8px var(--acc)}
+.outline{display:flex;flex-wrap:wrap;gap:6px;min-height:38px}
+.outline .tok{background:var(--teal-l);border-color:#99f6e4;color:#0f766e}
+.ghost{color:var(--ink3);font-size:13.5px}
+
+/* ---------- 热图 ---------- */
+.hmwrap{overflow-x:auto;padding-bottom:6px}
+.heat{display:grid;gap:2px;font-size:11px}
+.heat .cell{width:100%;aspect-ratio:1;border-radius:3px;background:#f2f3fa;transition:.18s;position:relative}
+.heat .cell:hover{outline:2px solid var(--acc);outline-offset:1px;z-index:3}
+.heat .rl{font-size:11.5px;color:var(--ink2);text-align:right;padding-right:7px;white-space:nowrap;font-weight:600;display:flex;align-items:center;justify-content:flex-end}
+.heat .cl{font-size:10.5px;color:var(--ink3);writing-mode:vertical-rl;transform:rotate(180deg);text-align:left;white-space:nowrap;height:76px;display:flex;align-items:flex-end}
+.legend{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink3);margin-top:10px}
+.legend .grad{width:120px;height:9px;border-radius:5px;background:linear-gradient(90deg,#f2f3fa,#c7d2fe,#6366f1,#312e81)}
+.tip{position:fixed;pointer-events:none;background:#1b2033;color:#fff;font-size:12px;padding:4px 9px;border-radius:7px;opacity:0;transition:opacity .12s;z-index:80;white-space:nowrap}
+
+/* ---------- 演示3：串行 vs 并行 ---------- */
+.race{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:760px){.race{grid-template-columns:1fr}}
+.racebox{background:#fff;border:1px solid var(--line2);border-radius:14px;padding:16px}
+.nodes{display:flex;gap:6px;justify-content:center;margin:14px 0}
+.node{width:42px;height:42px;border-radius:11px;border:2px solid var(--line);background:#fbfcff;display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:var(--ink3);transition:.25s}
+.node.on{border-color:var(--acc);background:var(--acc);color:#fff;transform:translateY(-3px);box-shadow:0 8px 18px -10px var(--acc)}
+.node.done{border-color:#a5b4fc;background:#eef0ff;color:var(--acc)}
+.node.all{border-color:var(--teal);background:var(--teal);color:#fff}
+.clock{font-family:ui-monospace,monospace;font-size:13px;color:var(--ink2);text-align:center;font-weight:700}
+.timebar{height:9px;background:#eef0f8;border-radius:5px;overflow:hidden;margin-top:8px}
+.timebar>i{display:block;height:100%;width:0;background:#6366f1;transition:width .3s linear}
+.timebar.teal>i{background:#14b8a6}
+
+/* ---------- QKV ---------- */
+.qkv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0}
+@media(max-width:760px){.qkv-grid{grid-template-columns:1fr}}
+.qkv{border-radius:14px;padding:16px 17px;border:1.5px solid}
+.qkv.q{background:#fff8ec;border-color:#fcd9a0}
+.qkv.k{background:#eef6ff;border-color:#bfdcff}
+.qkv.v{background:#effcf9;border-color:#a7ece5}
+.qkv b{display:block;font-size:15px;margin-bottom:6px}
+.qkv.q b{color:#b45309}.qkv.k b{color:#0369a1}.qkv.v b{color:#0f766e}
+.qkv p{font-size:14px;color:var(--ink2);margin:0}
+.qkv .em{display:block;margin-top:9px;font-size:13px;color:var(--ink3)}
+.canvasbox{background:#fff;border:1px solid var(--line2);border-radius:14px;padding:10px;display:flex;justify-content:center}
+canvas{max-width:100%;display:block}
+.slider{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink2);font-weight:600}
+input[type=range]{-webkit-appearance:none;appearance:none;height:4px;border-radius:3px;background:#dfe3f0;width:150px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--acc);cursor:pointer;box-shadow:0 2px 6px rgba(79,70,229,.5)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border:none;border-radius:50%;background:var(--acc);cursor:pointer}
+
+/* ---------- 表格 ---------- */
+.tbl{width:100%;border-collapse:collapse;font-size:14.5px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:var(--sh)}
+.tbl th,.tbl td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--line2);vertical-align:top}
+.tbl th{background:#f7f8fd;font-size:13px;letter-spacing:.02em;color:var(--ink2);font-weight:800}
+.tbl tr:last-child td{border-bottom:none}
+.tbl td:first-child{font-weight:700;white-space:nowrap}
+.tblwrap{overflow-x:auto;border-radius:14px}
+
+.quote{border-left:3px solid var(--warm);background:var(--warm-l);padding:13px 17px;border-radius:0 10px 10px 0;font-size:15px;color:#6b4d09;margin:16px 0}
+.quote b{color:#8a5a00}
+.note{background:#f8f9ff;border:1px solid var(--line);border-radius:12px;padding:14px 17px;font-size:14.5px;color:var(--ink2);margin:14px 0}
+.note b{color:var(--ink)}
+
+footer{margin-top:70px;background:#14162e;color:#a7aecb;padding:46px 0 60px;font-size:14.5px}
+footer b{color:#fff}
+footer a{color:#a5b4fc}
+.refs{font-size:13px;line-height:2;color:#8b93b8;margin-top:14px}
+
+.scorerow.narrow{grid-template-columns:84px 1fr 46px}
+.scorerow .lab{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scorerow .wv{text-align:right;font-family:ui-monospace,monospace;font-size:11.5px;font-weight:700}
+.tok.fwd{border-color:#7dd3fc;background:#e0f2fe}
+.tok.bwd{border-color:#fcd34d;background:#fef3c7}
+.tok.both{border-color:#a78bfa;background:#ede9fe;box-shadow:0 6px 16px -8px #8b5cf6;transform:translateY(-2px)}
+.tok.wrong{border-color:#fda4af;background:var(--red-l);color:#be123c;text-decoration:line-through}
+.heat.compact .cell{aspect-ratio:auto;height:23px;border-radius:3px}
+.heat.compact .rl{font-size:11.5px;height:23px}
+.heat .cell.lock{outline:2px solid var(--acc);outline-offset:-1px}
+.heat .cell.dimrow{opacity:.22}
+.heat .rl.dimrow,.heat .cl.dimcol{opacity:.3}
+.legend .swatch{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:4px}
+.srcline .w{opacity:0;display:inline-block;transform:translateY(6px);transition:.35s}
+.srcline .w.in{opacity:1;transform:none}
+.srcline .w.garbled{color:#be123c;text-decoration:line-through;text-decoration-color:#fda4af}
+/* ---------- 1.3 RNN 展开演示 ---------- */
+.rnn-chain{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:18px}
+@media(max-width:640px){.rnn-chain{grid-template-columns:repeat(3,1fr)}}
+.rnn-col{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px 10px;border-radius:12px;border:1.5px dashed transparent;transition:.28s}
+.rnn-col.on{border-color:#c7d2fe;background:#f6f7ff}
+.rnn-col .x,.rnn-col .h{font-size:12.5px;font-weight:700;padding:3px 9px;border-radius:8px;border:1.5px solid var(--line);background:#fff;white-space:nowrap;transition:.28s}
+.rnn-col .h{background:#f4f6fc;color:var(--ink3);border-color:#e6e9f2}
+.rnn-col.on .x{border-color:var(--acc);background:var(--acc-l);color:var(--acc)}
+.rnn-col.on .h{background:#4338ca;border-color:#4338ca;color:#fff}
+.rnn-col .ar{font-size:11px;line-height:1;color:#ccd1e4}
+.rnn-col .glyph{font-size:15px;line-height:1;color:#ccd1e4;transition:.28s}
+.rnn-col.on .glyph{color:var(--acc)}
+.rnn-col .tag{font-size:10px;font-weight:700;color:#c7cbe4;letter-spacing:.02em}
+.rnn-col.on .tag{color:var(--acc)}
+.rnn-cell{background:#fff;border:1.5px solid var(--acc);border-radius:14px;padding:13px 16px;text-align:center;box-shadow:0 10px 28px -20px var(--acc);margin-bottom:14px}
+.rnn-cell .badge{display:inline-block;font-size:11.5px;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--acc),var(--vio));padding:3px 11px;border-radius:100px;margin-bottom:9px}
+.rnn-cell .eq{font-family:ui-monospace,monospace;font-size:14.5px;line-height:2}
+.vecwrap{margin-top:4px}
+.vecrow{display:flex;gap:3px;margin-top:7px}
+.vecrow i{flex:1;height:28px;border-radius:4px;background:#e9ebf5;transition:background .35s}
+/* ---------- 1.5 结论框 ---------- */
+.answer{background:linear-gradient(180deg,#f6f4ff,#eef0ff);border:2px solid #c7d2fe;border-radius:16px;padding:18px 22px;margin:20px 0}
+.answer .big{font-size:18px;font-weight:800;color:var(--acc-d);line-height:1.65;margin-bottom:8px}
+.answer p:last-child{margin-bottom:0}
+.answer code{background:#fff;padding:1px 7px;border-radius:6px;border:1px solid #dcd6ff;font-weight:700}
+/* ---------- 全景图 SVG ---------- */
+.eddwrap{overflow-x:auto;padding-bottom:6px}
+.edd{width:100%;height:auto;display:block;max-width:900px;margin:0 auto}
+@media(max-width:800px){.edd{min-width:680px;margin:0}}
+.edd .bx{fill:#fff;stroke:#dfe3f0;stroke-width:1.6}
+.edd .bx.hot{fill:#4f46e5;stroke:#4f46e5}
+.edd .bx.cc{fill:#f59e0b;stroke:#f59e0b}
+.edd .bx.dd{fill:#f4f6fc;stroke:#e6e9f2}
+.edd .tx{font:700 13px system-ui,"PingFang SC",sans-serif;fill:#1b2033;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
+.edd .tx.w{fill:#fff}
+.edd .lb{font:11.5px system-ui,"PingFang SC",sans-serif;fill:#8b93a9}
+.edd .lb.b{font-weight:800;fill:#5a6178;font-size:12.5px}
+.edd .ln{stroke:#c7cbe4;stroke-width:1.7;fill:none;marker-end:url(#eddArrow)}
+.edd .ln.hot{stroke:#f59e0b;stroke-width:2.6;marker-end:url(#eddArrowHot)}
+.edd .ln.recur{stroke:#a5b4fc}
+.edd .grp{cursor:pointer}
+.edd .grp:hover .bx{stroke:#f59e0b;stroke-width:3}
+.edd .grp:hover .tx{fill:#b45309}
+/* ---------- 1.2 手算演示 ---------- */
+.calc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+@media(max-width:760px){.calc-grid{grid-template-columns:1fr}}
+.matbox{border-radius:12px;padding:12px 15px;border:1.5px solid}
+.matbox.wx{background:#fff8ec;border-color:#fcd9a0}
+.matbox.wh{background:#effcf9;border-color:#a7ece5}
+.matbox.wb{background:#f4f2ff;border-color:#d6d0ff}
+.matbox>b{display:block;font-size:13.5px;margin-bottom:9px}
+.matbox.wx>b{color:#b45309}
+.matbox.wh>b{color:#0f766e}
+.matbox.wb>b{color:#4f46e5}
+.mat{display:inline-grid;gap:4px;margin-bottom:9px}
+.mat i{font-style:normal;font-family:ui-monospace,monospace;font-size:12.5px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:3px 6px;text-align:center;min-width:50px}
+.matbox.wx .mat i{border-color:#f3d6a8}
+.matbox.wh .mat i{border-color:#a7ece5}
+.matbox.wb .mat i{border-color:#d6d0ff}
+.matbox>span{display:block;font-size:11.5px;line-height:1.65;color:var(--ink3)}
+.calc-state{display:flex;gap:26px;flex-wrap:wrap;background:#fff;border:1px dashed var(--line);border-radius:12px;padding:12px 16px;margin-bottom:14px}
+.calc-state>div{display:flex;flex-direction:column;gap:2px}
+.calc-state .muted{font-size:11.5px}
+.calc-state b{font-family:ui-monospace,monospace;font-size:14px;font-weight:700}
+.calc-eq{background:#fbfcff;border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:10px;padding:12px 16px;
+  font-family:ui-monospace,monospace;font-size:12.5px;line-height:2.3;overflow-x:auto;white-space:nowrap}
+.calc-eq .wx{color:#b45309;font-weight:700}
+.calc-eq .wh{color:#0f766e;font-weight:700}
+.calc-eq .wb{color:#4f46e5;font-weight:700}
+.calc-eq .res{color:var(--acc);font-weight:800}
+/* ---------- 对齐模型网络图 ---------- */
+.edd .bx.s{fill:#fff8ec;stroke:#fcd9a0}
+.edd .bx.h{fill:#effcf9;stroke:#a7ece5}
+.edd .bx.m{fill:#f6f4ff;stroke:#c7d2fe}
+.edd .bx.o{fill:#4f46e5;stroke:#4f46e5}
+.edd .sub{font:10px system-ui,"PingFang SC",sans-serif;fill:#8b93a9;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
+.edd .sub.w{fill:rgba(255,255,255,.88)}
+.edd .dash{fill:none;stroke:#c7d2fe;stroke-width:1.4;stroke-dasharray:7 5}
+.edd .ln2{stroke:#c7cbe4;stroke-width:1.7;fill:none;marker-end:url(#eddArrow2)}
+.edd .ltx{font:11px system-ui,"PingFang SC",sans-serif;fill:#5a6178}
+.edd .ln2.nb{marker-end:none}
+.edd .grp:hover .tx.w{fill:#fff}
+.tbl.flat th:nth-child(2),.tbl.flat td:nth-child(2){width:92px;white-space:nowrap}
+.tbl.flat th:nth-child(3),.tbl.flat td:nth-child(3){width:236px}
+.tbl.sym th:nth-child(1),.tbl.sym td:nth-child(1){width:104px}
+.tbl.sym th:nth-child(2),.tbl.sym td:nth-child(2){width:150px}
+.tbl.sym th:nth-child(3),.tbl.sym td:nth-child(3){min-width:320px}
+.tbl.sym th:nth-child(4),.tbl.sym td:nth-child(4){width:110px;white-space:nowrap}
+.tbl.gloss th:nth-child(1),.tbl.gloss td:nth-child(1){width:118px;white-space:nowrap}
+.tbl.gloss th:nth-child(2),.tbl.gloss td:nth-child(2){min-width:340px}
+.tbl.gloss th:nth-child(3),.tbl.gloss td:nth-child(3){width:86px;white-space:nowrap}
+.tbl.gloss th:nth-child(4),.tbl.gloss td:nth-child(4){width:66px;white-space:nowrap;text-align:right}
+/* ---------- v_a 演示 ---------- */
+.vatbl{width:100%;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.varow{display:grid;grid-template-columns:82px 1fr 250px 96px;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--line2);font-size:13px}
+.varow:first-child{border-top:none}
+.varow.vah{background:#f7f8fd;font-size:12px;color:var(--ink2);font-weight:800}
+.varow .u{color:var(--teal);font-weight:800}
+.varow .p{color:var(--acc);font-weight:800;text-align:right}
+.varow .sl{display:flex;align-items:center;gap:9px}
+.varow .sl b{font-size:12px;min-width:36px;color:var(--acc)}
+.vah span:last-child{text-align:right}
+.vasum{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding:11px 15px;background:#f6f4ff;border:1px dashed #c7d2fe;border-radius:12px;font-size:14px;font-weight:700}
+.vasum b{font-size:22px;color:var(--acc)}
+.va-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.va-lab{font-size:12.5px;font-weight:700;color:var(--ink2);margin-top:14px}
+@media(max-width:800px){.varow{grid-template-columns:52px 1fr 150px 76px;font-size:12px}input[type=range]{width:110px}}
+.reveal{opacity:0;transform:translateY(16px);transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1)}
+.reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none}*{animation-duration:.001s!important;transition-duration:.05s!important}}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div class="tip" id="tip"></div>
+
+<nav id="top">
+  <div class="navin">
+    <div class="brand">Bahdanau <i>→</i> Transformer</div>
+    <div class="links">
+      <a class="lk" href="#ch0">序章</a>
+      <a class="lk" href="#ch1">① 一个向量的瓶颈</a>
+      <a class="lk" href="#ch2">② Bahdanau 的答案</a>
+      <a class="lk" href="#ch3">③ 枷锁</a>
+      <a class="lk" href="#ch4">④ Transformer 与 Q/K/V</a>
+      <a class="lk" href="#ch5">⑤ 对比</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <canvas id="heroCanvas"></canvas>
+  <div class="wrap">
+    <div class="tagline">Attention · 一段被讲清楚的历史</div>
+    <h1>从 Bahdanau 的「<em>回头看一眼</em>」<br>到 Transformer 的 Q / K / V</h1>
+    <p class="lead">2014 年，Bahdanau 为了让机器翻译的长句子别翻崩，让解码器每写一个词就回头扫一眼原文的每个位置。
+      三年后，Transformer 说：既然「回头看一眼」这么好用，那我们能不能<strong>只留下它</strong>？——这就是 Q、K、V 的由来。</p>
+    <div class="chips">
+      <span class="chip">👶 零基础可读</span>
+      <span class="chip">🎬 10 个可交互演示</span>
+      <span class="chip">🧭 从问题到公式逐步推导</span>
+      <span class="chip">📄 arXiv:1409.0473 → arXiv:1706.03762</span>
+    </div>
+    <div class="byt">阅读约 25 分钟 · 建议按顺序 · 每个演示都可以点点看</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- ================= 序 ================= -->
+<section id="ch0" class="chap reveal">
+  <div class="eyebrow">序章</div>
+  <h2>先讲一个故事：把英文变中文</h2>
+  <p class="lead">我们要解决的，是<strong>机器翻译</strong>：给它一句英文，让它吐出对应的中文。</p>
+
+  <div class="card">
+    <p>2014 年前后，最时髦的做法叫 <strong>Seq2Seq（序列到序列）</strong>，来自两篇同年论文：Sutskever 等人的 *Sequence to Sequence Learning*，和 Cho 等人的 *Learning Phrase Representations*（也就是提出 GRU 的那篇）。它的结构非常朴素，只有两块：</p>
+    <div class="flow" style="margin:18px 0">
+      <div class="tok" style="border-color:#c7d2fe">编码器 Encoder<br><span class="muted" style="font-size:11px">读英文</span></div>
+      <div class="arrowline"></div>
+      <div class="tok" style="border-color:#fcd34d;background:#fffbeb">一个向量 c<br><span class="muted" style="font-size:11px">全部的理解</span></div>
+      <div class="arrowline"></div>
+      <div class="tok" style="border-color:#99f6e4">解码器 Decoder<br><span class="muted" style="font-size:11px">写中文</span></div>
+    </div>
+    <p style="margin-bottom:0">问题就出在中间那个方块上：<mark>整句英文，最后被压缩成 <strong>一个固定长度的向量</strong></mark>。无论句子是 3 个词还是 60 个词，中间这个「快递箱」的大小都一模一样。</p>
+  </div>
+
+  <div class="quote">
+    <b>打个比方。</b>你要把一整套《三体》三部曲托人带给朋友。但传达室规定：<b>必须把所有内容念给一个传话人听，然后让他只凭记忆复述</b>，而且无论书多厚，他能记住的东西是固定的。
+    书薄的时候还凑合，到了第三本，他一定会开始漏内容——而且漏的往往是最早听的那部分。
+  </div>
+</section>
+
+<!-- ================= 第 1 章 ================= -->
+<section id="ch1" class="chap reveal">
+  <div class="eyebrow red">第 ① 章 · 旧办法</div>
+  <h2>一个固定大小的向量，装不下一整句话</h2>
+  <p class="sub">这一步最关键：先让你真正体会到「疼」。所以我们先把 RNN 架构拆开看清楚，再来看它为什么一定会痛。</p>
+
+  <h3>1.1 先把一个词变成一串数字：词向量</h3>
+  <p>在讲 RNN 之前，得先解决一个更基础的问题：计算机不认识 <code>agreement</code> 这个词，它只认识数字。</p>
+  <p>做法是<b>查表</b>。假设词表里有 3 万个词，我们准备一张 <b>30000 × 512</b> 的大表格 <code>E</code>（叫做词向量表 / embedding 矩阵）。词表里第 <em>k</em> 个词，就对应这张表的第 <em>k</em> 行。要表示句子里的第 <em>t</em> 个词，就查出它的编号，把对应那一行取出来：</p>
+  <div class="formula">
+    x<sub>t</sub> = <span class="fk">E</span> · onehot(w<sub>t</sub>)　　<span class="cm">// 数学上是一次矩阵乘法；实现上就是「查第几行，把那一行取出来」</span>
+  </div>
+  <p>于是句子变成了 <b>x<sub>1</sub> x<sub>2</sub> … x<sub>T</sub></b> 这样一串长度固定的向量（每个 512 维）。<mark>这张表本身也是要学的参数</mark>——训练的过程同时也是在学「哪些词的意思比较接近」：学过之后，<code>cat</code> 和 <code>kitten</code> 的向量会靠得很近。</p>
+
+  <h3>1.2 RNN 单元里到底算的是什么</h3>
+  <p>有了 x<sub>1</sub>…x<sub>T</sub>，编码器的工作是把它们揉成「一句完整的意思」。它用的工具就是一个 <b>RNN 单元</b>，最朴素的版本长这样（先别看下标，先看结构）：</p>
+  <div class="formula" style="font-size:16px;line-height:2.6">
+    <span class="fk">h</span><sub>t</sub> ＝ tanh( <span class="fq">W<sub>x</sub></span> x<sub>t</sub> ＋ <span class="fv">W<sub>h</sub></span> <span class="fk">h</span><sub>t−1</sub> ＋ <span class="fk">b</span> )
+  </div>
+  <p>先从最容易被含糊过去的地方开始：<b>这几个字母到底分别是什么东西？</b>把定义钉死，后面就不会看晕。</p>
+
+  <div class="tblwrap" style="margin:16px 0">
+    <table class="tbl">
+      <thead><tr><th>符号</th><th>读作</th><th>它是什么</th><th>类型 / 形状</th><th>从哪来</th></tr></thead>
+      <tbody>
+        <tr><td>t</td><td>时间步</td><td>「第几个词」，从 1 数到 T</td><td>整数下标</td><td>—</td></tr>
+        <tr><td>T</td><td>句长</td><td>这句话一共有多少个词</td><td>整数</td><td>由输入决定</td></tr>
+        <tr><td>x<sub>t</sub></td><td>第 t 个输入</td><td>第 t 个词的<b>词向量</b>——就是 1.1 节查表查出来的那个</td><td><b>向量</b>，d<sub>x</sub> 维（如 512）</td><td>查 embedding 表</td></tr>
+        <tr><td>h<sub>t</sub></td><td>第 t 个隐状态</td><td>读完第 t 个词之后，「到目前为止的<b>全部记忆</b>」</td><td><b>向量</b>，d<sub>h</sub> 维（如 512）</td><td>由本公式算出来</td></tr>
+        <tr><td>W<sub>x</sub></td><td>输入权重矩阵</td><td>把「输入空间」的说法翻译成「记忆空间」的说法</td><td><b>矩阵</b>，d<sub>h</sub> × d<sub>x</sub></td><td><b>要学的参数</b></td></tr>
+        <tr><td>W<sub>h</sub></td><td>循环权重矩阵</td><td>决定「旧记忆」以什么方式影响「新记忆」</td><td><b>矩阵</b>，d<sub>h</sub> × d<sub>h</sub></td><td><b>要学的参数</b></td></tr>
+        <tr><td>b</td><td>偏置</td><td>一个常数偏移，让记忆不必被「必须穿过原点」绑住</td><td><b>向量</b>，d<sub>h</sub> 维</td><td><b>要学的参数</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid2" style="margin:16px 0">
+    <div class="kv"><b>① 下标 t 是「时间」，不是乘法</b><span><code>h<sub>t</sub></code> 读作「h 在第 t 个时间步的取值」，<b>不是</b> h 乘以 t。<code>h<sub>t−1</sub></code> 同理，是「上一步的 h」。<code>W<sub>x</sub></code> 里的 x 是下标，表示「这个矩阵是配给 x 用的」。</span></div>
+    <div class="kv"><b>② h 是一个向量，不是一个数</b><span>「隐状态 / 隐藏状态」里的「隐藏」，是说它<b>藏在模型内部</b>——不像输入 x 和输出 y 那样你能直接看见。<code>h<sub>t</sub></code> 是 d<sub>h</sub>=512 个数排成的一列，不是一个标量。</span></div>
+    <div class="kv"><b>③ h<sub>t</sub> 和 h<sub>t−1</sub> 不是两个变量</b><span>它们是<b>同一个变量在两个时刻的快照</b>。每算完一步，新的值就把旧值<b>覆盖</b>掉。可以把它想成一块白板：每读一个词就擦掉重写一次——白板的面积（512 个格子）从头到尾不变。</span></div>
+    <div class="kv"><b>④ 矩阵的形状是被「加法」逼出来的</b><span>W<sub>x</sub> 必须是 d<sub>h</sub>×d<sub>x</sub>、W<sub>h</sub> 必须是 d<sub>h</sub>×d<sub>h</sub>，否则下面那一步加法根本做不了。看下一段的<b>形状检查</b>。</span></div>
+  </div>
+
+  <h4>形状检查：为什么记忆的宽度永远不变</h4>
+  <div class="formula" style="line-height:2.7">
+    <span class="fq">W<sub>x</sub></span> x<sub>t</sub>　:　(d<sub>h</sub> × d<sub>x</sub>) · (d<sub>x</sub>) ＝ <b>d<sub>h</sub></b>　　<span class="cm">// 输入被「投影」进记忆空间</span><br>
+    <span class="fv">W<sub>h</sub></span> h<sub>t−1</sub>　:　(d<sub>h</sub> × d<sub>h</sub>) · (d<sub>h</sub>) ＝ <b>d<sub>h</sub></b>　　<span class="cm">// 旧记忆本来就在记忆空间里</span><br>
+    两者相加 ＋ <span class="fk">b</span>　:　d<sub>h</sub> ＋ d<sub>h</sub> ＝ <b>d<sub>h</sub></b>　　<span class="cm">// 形状一致，才能逐个数相加</span><br>
+    tanh( · )　:　d<sub>h</sub> → <b>d<sub>h</sub></b>　　<span class="cm">// tanh 逐个元素作用，不改变形状</span>
+  </div>
+  <p>所以 <b>h<sub>t</sub> 永远是一个 d<sub>h</sub> 维向量</b>。请注意最后一行——<mark>这就是「信息瓶颈」的数学根源</mark>：整个公式里<b>没有任何一个地方能让 h 变宽</b>。句子有 3 个词还是 50 个词，这块白板都只有 d<sub>h</sub> 个格子。想让模型记住更多，只能换个更大的 d<sub>h</sub>，而那是有限的。</p>
+
+  <p>有了定义，再回头看那三项分别是干什么的：</p>
+  <div class="grid3">
+    <div class="kv"><b><span class="fq">W<sub>x</sub></span> x<sub>t</sub> —— 刚听到的</b><span>刚读到的这个词带来了什么新信息。<code>W<sub>x</sub></code> 是 d<sub>h</sub>×d<sub>x</sub> 的矩阵（两者通常都是 512，所以就是 512×512），负责把「词向量空间」里的 x<sub>t</sub> 翻译成「记忆空间」里的说法。</span></div>
+    <div class="kv"><b><span class="fv">W<sub>h</sub></span> h<sub>t−1</sub> —— 原先记住的</b><span>上一步攒下来的记忆。<code>W<sub>h</sub></code> 是 d<sub>h</sub>×d<sub>h</sub> 的方阵，管的是「旧记忆怎么改写」。请特别注意：<b>能带到下一步的东西，只有 h<sub>t−1</sub> 这 512 个数</b>，没有别的存档，也没有草稿纸。</span></div>
+    <div class="kv"><b>＋ 再过一个 tanh —— 揉在一起</b><span>两部分相加后过一层非线性，把数值压到 (−1, 1)，得到新的记忆 h<sub>t</sub>。<br><span class="muted">现代模型把这里换成 LSTM 或 GRU：多几个「门」来决定什么该忘、什么该记，公式更复杂，但 h<sub>t</sub> 扮演的角色完全一样。</span></span></div>
+  </div>
+
+  <h4>手算一遍：把它从符号变成数字</h4>
+  <p>符号看懂了，还得看它真的转起来是什么样。下面把维度缩到 <b>2 维</b>（真实模型是 512 维，算法完全一样），所有数字都是当场算出来的，你可以拿笔跟着核对。</p>
+
+  <div class="demo" id="calcDemo">
+    <div class="demo-head">
+      <span class="demo-title">演示 1 · 亲手算一个 2 维的 RNN 单元</span>
+      <div class="demo-ctl">
+        <button class="btn primary" id="calcStep">下一步 ▶</button>
+        <button class="btn" id="calcReset">重来</button>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="calc-grid">
+        <div class="matbox wx"><b>W<sub>x</sub>（d<sub>h</sub>×d<sub>x</sub> = 2×2）</b><div class="mat" id="matWx"></div><span>输入权重：把 2 维词向量转成 2 维记忆</span></div>
+        <div class="matbox wh"><b>W<sub>h</sub>（d<sub>h</sub>×d<sub>h</sub> = 2×2）</b><div class="mat" id="matWh"></div><span>循环权重：决定旧记忆怎么改写新记忆</span></div>
+        <div class="matbox wb"><b>b（d<sub>h</sub> = 2 维）</b><div class="mat" id="matB"></div><span>偏置。这三个就是要学的全部参数</span></div>
+      </div>
+      <div class="calc-state">
+        <div><span class="muted">输入 x<sub>t</sub></span><b id="calcX">—</b></div>
+        <div><span class="muted">上一刻记忆 h<sub>t−1</sub></span><b id="calcHprev">—</b></div>
+        <div><span class="muted">算出的新记忆 h<sub>t</sub></span><b id="calcH" style="color:var(--acc)">—</b></div>
+      </div>
+      <div class="calc-eq" id="calcEq"><span class="ghost">点「下一步」开始逐行计算。</span></div>
+      <div class="readout" id="calcMsg">为了让你能<b>手算</b>，这里把维度缩到 2；真实模型是 512 维，但算法一模一样。</div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>最关键的一句话：W<sub>x</sub>、W<sub>h</sub>、b 在所有时间步都是同一套。</b><br>
+    句子有 50 个词，不是 50 套参数，而是<b>同一套参数被用了 50 次</b>——像一枚印章，在句子的每个位置盖一下。这就是「循环（recurrent）」这个词的全部含义。<br><br>
+    <b>两个直接后果：</b><br>
+    ① 参数量与句子长度<b>无关</b>（永远是 512×512 ＋ 512×512 ＋ 512 ≈ 52 万个），所以它能处理任意长的句子；<br>
+    ② 但也正因为要把任意长的内容塞进宽度不变的 h<sub>t</sub>，它只能做<b>有损压缩</b>——这正是 1.6 要讲的瓶颈。
+  </div>
+
+  <p>还有个常被忽略的细节：<b>h<sub>0</sub> 是什么？</b>句子还没开始读的时候没有任何记忆，所以约定 <code>h<sub>0</sub></code> 是一个<b>全 0 向量</b>。</p>
+
+  <h3>1.3 把循环「展开」看：编码器是怎么读完整句话的</h3>
+  <p>上面那个公式里 h<sub>t</sub> 依赖 h<sub>t−1</sub>，是循环的，画不出来。习惯上我们会把它按时间<b>展开（unroll）</b>成一条链。请盯住一件事：<mark>链上每一个方框都是<strong>同一个单元</strong>，用的是<strong>同一套参数</strong></mark>。</p>
+
+  <div class="demo" id="rnnDemo">
+    <div class="demo-head">
+      <span class="demo-title">演示 2 · 把循环展开：一个 RNN，反复用同一套参数</span>
+      <div class="demo-ctl">
+        <button class="btn primary" id="rnnStep">下一步 ▶</button>
+        <button class="btn" id="rnnAuto">自动播放</button>
+        <button class="btn" id="rnnReset">重来</button>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="rnn-chain" id="rnnChain"></div>
+      <div class="rnn-cell">
+        <div class="badge">全部家当 · 只有这一个单元</div>
+        <div class="eq">h<sub>t</sub> = tanh( W<sub>x</sub>x<sub>t</sub> + W<sub>h</sub>h<sub>t−1</sub> + b )</div>
+        <div class="muted" style="font-size:12.5px;margin-top:6px">W<sub>x</sub>、W<sub>h</sub>、b 是<b>一套固定参数</b>，被反复使用；每一步真正变化的，只有输入 x<sub>t</sub> 和上一刻的记忆 h<sub>t−1</sub>。</div>
+      </div>
+      <div class="vecwrap">
+        <div class="muted" style="font-size:12.5px;font-weight:700" id="vecLabel">此刻的记忆 h（示意 12 维，真实模型是 512 维）</div>
+        <div class="vecrow zero" id="rnnVec"></div>
+      </div>
+      <div class="readout" id="rnnMsg">点「下一步」，看同一个单元是怎么被反复使用的。</div>
+    </div>
+  </div>
+
+  <p>看明白这条链，旧模型的毛病就一目了然了：<b>整条链走完，只有最后一个 h<sub>T</sub> 会被带走</b>。前面的 h<sub>1</sub>…h<sub>T−1</sub> 全都认认真真算过了，然后扔了。</p>
+
+  <h3>1.4 解码器：另一个 RNN，负责往外写</h3>
+  <p>编码器读完后轮到解码器写。它<b>也是</b>一个 RNN，但有三处不同：输入变成了「上一步自己吐出来的词」、每一步还要额外看一眼 c、而且它用的是<b>另外一整套参数</b>（和解码器的 W<sub>x</sub>、W<sub>h</sub> 不共享）。</p>
+  <div class="formula" style="line-height:2.6">
+    <span class="fv">s</span><sub>t</sub> = f( <span class="fv">s</span><sub>t−1</sub> , y<sub>t−1</sub> , <span class="fk">c</span> )　　p(y<sub>t</sub>) = softmax( <span class="fq">W<sub>o</sub></span> <span class="fv">s</span><sub>t</sub> ＋ b<sub>o</sub> )
+  </div>
+  <p>逐步拆开：</p>
+  <div class="grid2" style="margin:14px 0">
+    <div class="kv"><b><span class="fv">s</span><sub>t−1</sub> —— 解码器自己的记忆</b><span>注意：它叫 s 不叫 h，因为这是<b>另一个 RNN</b>，参数完全不同。（1.5 节会把 h / s / c 三个符号彻底分清。）</span></div>
+    <div class="kv"><b>y<sub>t−1</sub> —— 上一步吐出来的词</b><span>第一步还没有词，用一个特殊符号 <code>&lt;sos&gt;</code>（start of sentence）顶上。</span></div>
+    <div class="kv"><b><span class="fq">W<sub>o</sub></span> 与 softmax —— 从状态到词</b><span>把 512 维的状态投影成「词表大小」维的分数，softmax 之后就是每个候选词的概率。取概率最大的那个作为输出。</span></div>
+    <div class="kv"><b>然后把它喂回下一步</b><span>如此循环，直到吐出 <code>&lt;eos&gt;</code> 结束符。（训练时为了并行和稳定，用的是「教师强制」：直接喂<b>标准答案</b>里的上一个词，而不是模型自己猜的。）</span></div>
+  </div>
+  <p>关于 <code>c</code> 怎么进入解码器，两篇 2014 年的论文做法略有差别：<b>Sutskever</b> 把它当作解码器的<b>初始状态</b>（s<sub>0</sub> = c，之后就不再出现了）；<b>Cho</b> 则<b>每一步都把它喂进去</b>。但有一点两家完全一样：<mark><b>c 在整个解码过程中是同一个向量，一个数都不会变。</b></mark>记住这句话——这就是 Bahdanau 要掀翻的东西。</p>
+
+  <div class="demo" id="edDemo">
+    <div class="demo-head">
+      <span class="demo-title">演示 3 · 一张图看懂 h / s / c</span>
+      <div class="demo-ctl"><span class="muted" style="font-size:12.5px">点任意一个方框，看它在故事里的角色</span></div>
+    </div>
+    <div class="stage">
+      <div class="eddwrap"><svg class="edd" id="edSvg" viewBox="0 0 760 380" role="img" aria-label="编码器-解码器结构图"></svg></div>
+      <div class="readout" id="edMsg">橙色的那个框既是 <b>h₄</b>（编码器的最后一个状态），也是 <b>c</b>（整句的摘要）——同一个向量，两个名字。</div>
+    </div>
+  </div>
+
+  <h3>1.5 h<sub>t</sub> 和 c 到底是不是一个东西？</h3>
+
+  <div class="answer">
+    <div class="big">直接回答：在旧的 Seq2Seq 里，c 就是最后一个编码器状态 h<sub>T</sub>。它们是同一个向量——c 只是它换了个身份之后的新名字。</div>
+    <p>写成式子就是 <code>c ≡ h<sub>T</sub></code>。不是两个东西，也不是「拿 h<sub>T</sub> 再算出 c」，而是<b>同一块内存，在论文里被赋予了第二个名字</b>。</p>
+  </div>
+
+  <p><b>那为什么要改名？</b>因为视角变了。站在编码器里看，h<sub>T</sub> 的含义是「读到第 T 个词时我记住了什么」；一旦把它递给解码器，它的含义就变成了「整句话的摘要」。改名是在提醒你：<b>它现在扮演的角色不同了。</b></p>
+
+  <p><b>但有三件事必须分清楚，否则后面一定会看晕：</b></p>
+  <div class="grid3">
+    <div class="kv"><b>① h<sub>1</sub> … h<sub>T−1</sub> 不是 c</b><span>它们确实被算出来过，但旧模型<b>用完就扔</b>，只留最后一个 h<sub>T</sub>。这是巨大的浪费，也正是 Bahdanau 要纠正的事。</span></div>
+    <div class="kv"><b>② 编码器的 h 和解码器的 s 也不是一回事</b><span>两个独立的 RNN、两套不同的参数。h 是「读」出来的记忆，s 是「写」出来的记忆。</span></div>
+    <div class="kv"><b>③ 到了 Bahdanau，c 就和 h 脱钩了</b><span>那时的 <b>c<sub>t</sub> ＝ Σ<sub>j</sub> α<sub>tj</sub> h<sub>j</sub></b> 是所有 h 的<b>加权平均</b>：它不等于任何一个具体的 h，而且每一步都不一样。这正是下一章的主角。</span></div>
+  </div>
+
+  <p style="margin-top:22px">五个符号放在一起对比，建议把这张表记住：</p>
+  <div class="tblwrap" style="margin:16px 0">
+    <table class="tbl">
+      <thead><tr><th>符号</th><th>属于谁</th><th>含义</th><th>宽度</th><th>在旧模型里的命运</th></tr></thead>
+      <tbody>
+        <tr><td>x<sub>t</sub></td><td>输入</td><td>第 t 个词的词向量</td><td>512</td><td>被编码器读入</td></tr>
+        <tr><td>h<sub>t</sub></td><td>编码器</td><td>「读到第 t 个词」时的记忆</td><td>512</td><td><b>只有 h<sub>T</sub> 被带走</b>，h<sub>1</sub>…h<sub>T−1</sub> 全部丢弃</td></tr>
+        <tr><td><b>c</b></td><td>—（就是 h<sub>T</sub>）</td><td>整句的摘要，<b>字面上等于 h<sub>T</sub></b></td><td>512</td><td>解码全程都是它，从不改变</td></tr>
+        <tr><td>s<sub>t</sub></td><td>解码器</td><td>「已经写了 t 个词」时的状态</td><td>512</td><td>每写一个词更新一次</td></tr>
+        <tr><td>y<sub>t</sub></td><td>输出</td><td>第 t 个生成的词</td><td>词表大小</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <b>一句话记住：</b>h 是编码器的记忆（有很多个，只留最后一个），s 是解码器的记忆（每步一个），<b>c 是给最后一个 h<sub>T</sub> 起的别名</b>，在旧模型里它是唯一被解码器看到的输入。
+    <br><span class="muted">顺带一提：到了 Bahdanau 的论文里，连「用 h<sub>T</sub> 初始化解码器」这一步都不需要了——解码器的初始状态改由双向 RNN 的反向状态初始化，而上下文不再是固定的 c，而是每步现算的 c<sub>t</sub>。</span>
+  </div>
+
+  <h3>1.6 问题一：信息瓶颈（Information Bottleneck）</h3>
+  <p>固定维度的向量（比如 512 个浮点数）容量有限。句子越长，需要塞进去的信息越多，而箱子不会变大——于是只能丢。丢掉的往往是句首的信息，因为它在 RNN 里已经被后面很多步「稀释」过了。</p>
+
+  <h3>1.7 问题二：两个语言的语序对不上</h3>
+  <p><strong>词序不一定一样</strong>。英文 <code>the European Economic Area</code> 翻成法文是 <code>la zone économique européenne</code>——形容词跑到了名词后面，顺序整个被打乱。而旧模型要求那一个 <code>c</code> 独力完成所有重排，它没有任何「先看哪、后看哪」的显式机制。</p>
+
+  <div class="demo" id="bnDemo">
+    <div class="demo-head">
+      <span class="demo-title">演示 4 · 编码器的背包</span>
+      <div class="demo-ctl">
+        <button class="btn" data-bn="short">短句</button>
+        <button class="btn on" data-bn="long">长句</button>
+        <button class="btn primary" id="bnPlay">▶ 播放</button>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="bn-stage">
+        <div>
+          <div class="muted" style="font-size:12.5px;margin-bottom:8px;font-weight:700">① 原文，一个词一个词读进去</div>
+          <div class="srcbox" id="bnSrc"></div>
+        </div>
+        <div class="bagwrap">
+          <div class="muted" style="font-size:12.5px;margin-bottom:8px;font-weight:700">② 压进 c</div>
+          <div class="bag" id="bnBag"><div class="cap">固定 512 维</div></div>
+          <div class="bagcap" id="bnCap">已用 0%</div>
+        </div>
+        <div>
+          <div class="muted" style="font-size:12.5px;margin-bottom:8px;font-weight:700">③ 解码器只能看 c 来写译文</div>
+          <div class="srcline" id="bnOut" style="font-size:14px;line-height:2"></div>
+        </div>
+      </div>
+      <div class="readout" id="bnMsg">点「播放」看看这句话被压进固定大小的向量时会发生什么。</div>
+    </div>
+  </div>
+
+  <h3>1.8 论文里的证据</h3>
+  <p>这不是猜测。<strong>Cho 等人在 2014 年的实验里明确报告：BLEU 分数随着句子变长而下降</strong>（BLEU 是翻译质量指标，越高越好）。Bahdanau 的论文里也画了同样的曲线。有意思的是，Sutskever 等人发现：<mark>只要把源句子<strong>倒着</strong>输入给编码器，翻译质量就会明显变好</mark>。</p>
+  <p>为什么倒过来就有用？因为这样句首的词在 RNN 里「走得最短」，最不容易被稀释。这其实是一个很尴尬的补丁——它等于承认了：<strong>模型真正需要的，是知道「现在该看原文的哪一段」</strong>。而这正是注意力要做的事。</p>
+
+  <div class="demo">
+    <div class="demo-head">
+      <span class="demo-title">图 1 · BLEU 随句长变化（示意，据 Cho 等 2014 / Bahdanau 等 2014 复现）</span>
+    </div>
+    <div class="stage">
+      <canvas id="bleuChart" width="900" height="330"></canvas>
+      <div class="legend"><span>蓝 = 无注意力（RNNencdec）</span><span style="color:var(--teal)">绿 = 有注意力（RNNsearch）</span><span>横轴 = 句子长度（词）</span></div>
+    </div>
+    <div class="readout">鼠标移到曲线上看具体数值：<b>没有注意力时，句子越长掉得越狠</b>；有了注意力，曲线几乎是一条平线，甚至在路上还涨了一点。</div>
+  </div>
+</section>
+
+<!-- ================= 第 2 章 ================= -->
+<section id="ch2" class="chap reveal">
+  <div class="eyebrow">第 ② 章 · Bahdanau 的答案</div>
+  <h2>别只留最后一个记忆，让它每一步都回头扫一眼</h2>
+  <p class="sub">
+    <strong>Neural Machine Translation by Jointly Learning to Align and Translate</strong><br>
+    Dzmitry Bahdanau · Kyunghyun Cho · Yoshua Bengio — arXiv:1409.0473（2014 年 9 月，ICLR 2015）
+  </p>
+
+  <p class="lead">论文标题里的三个词就概括了一切：<b>Jointly</b>（一起）、<b>Learning</b>（学）、<b>Align and Translate</b>（对齐与翻译）。
+  也就是说：<mark>让模型在翻译的同时，自己学出「哪个原文词对应哪个译文词」</mark>，而不是把重排这件苦差事统统塞进一个向量里。</p>
+
+  <h3>2.1 灵感：人是怎么翻译的</h3>
+  <p>你自己翻译这句话的时候，眼睛在干什么？</p>
+  <div class="card tight" style="font-family:ui-monospace,monospace;font-size:14.5px">
+    The agreement on the European Economic Area was signed in August 1990 .<br>
+    L' accord sur la zone économique européenne a été signé en août 1990 .
+  </div>
+  <p>写 <code>zone</code> 的时候，你的目光会停在 <code>Area</code> 上；写 <code>août</code> 的时候，你盯着 <code>August</code>。
+  <strong>你不会先把整句死死背下来再闭眼翻译</strong>——你一边写，一边在原文上来回扫视。Bahdanau 想做的就是这件事。</p>
+
+  <h3>2.2 第一步：升级编码器，让每个词都「左右都看得见」</h3>
+  <p>原来的编码器只从左往右读。Bahdanau 用了<strong>双向 RNN（biRNN）</strong>：一个从左往右读，一个从右往左读，然后把每个位置上两个方向的向量<strong>拼起来</strong>。</p>
+  <div class="formula">
+    <span class="fk">h</span><sub>j</sub> = [ <span style="color:var(--sky)">→h</span><sub>j</sub> ; <span style="color:var(--warm)">←h</span><sub>j</sub> ]　　<span class="cm">// 第 j 个词的「双向摘要」</span>
+  </div>
+  <p>于是不再是「只有最后一个状态有用」，而是 <strong>h<sub>1</sub> … h<sub>T</sub> 每个位置都留下了一份带上下文的表示</strong>。这一步是注意力的地基：没有这些 h<sub>j</sub>，后面就无从「回头去看」。</p>
+
+  <div class="demo" id="biDemo">
+    <div class="demo-head">
+      <span class="demo-title">演示 5 · 双向 RNN：把鼠标移到任意一个词上</span>
+    </div>
+    <div class="stage">
+      <div class="toks" id="biToks" style="justify-content:center;gap:8px"></div>
+      <div style="margin-top:16px" class="readout" id="biMsg">每个词的 h<sub>j</sub> 都由「它左边的一切」和「它右边的一切」拼成。</div>
+    </div>
+  </div>
+
+  <h3>2.3 第二步：解码时，每一步都回头「扫一眼」</h3>
+  <p>这是整篇论文的心脏。解码器要生成第 <em>t</em> 个译文词时，做三件小事：</p>
+
+  <div class="steps3" style="margin-top:18px">
+    <span class="stepchip on">① 打分 e<sub>tj</sub></span>
+    <span class="stepchip">② 归一化 α<sub>tj</sub></span>
+    <span class="stepchip">③ 加权求和 c<sub>t</sub></span>
+  </div>
+
+  <h4>① 打分：上一步的我，和原文第 j 个词有多「般配」？</h4>
+  <div class="formula">
+    e<sub>tj</sub> = <span class="fk">a</span>( <span class="fq">s</span><sub>t−1</sub> , <span class="fv">h</span><sub>j</sub> )
+    = <span class="fk">v</span><sub>a</sub><sup>T</sup> tanh( <span class="fk">W</span><sub>a</sub><span class="fq">s</span><sub>t−1</sub> + <span class="fk">U</span><sub>a</sub><span class="fv">h</span><sub>j</sub> )　
+    <span class="cm">// 一个很小的神经网络，输出一个实数分数</span>
+  </div>
+  <p>意思是：拿 <b>解码器上一时刻的状态 s<sub>t−1</sub></b>（我此刻想表达什么）去和 <b>原文每个位置的 h<sub>j</sub></b>（原文每个词是什么）逐一比对，得到一个分数。分数越高 = 此刻我越应该看这个位置。</p>
+
+  <p><b>先定一条配色规矩：</b><span style="color:#b45309;font-weight:800">橙色 = 解码器这一侧的东西</span>，<span style="color:#0f766e;font-weight:800">绿色 = 编码器（原文）这一侧的东西</span>，<span style="color:#4f46e5;font-weight:800">紫色 = 对齐模型自己的、要学的参数</span>。下面一路都用这个规矩，颜色对得上，就说明你找对地方了。</p>
+
+  <h4 style="margin-top:26px">这张式子里每个符号分别是什么</h4>
+  <div class="tblwrap" style="margin:14px 0">
+    <table class="tbl sym">
+      <thead><tr><th>符号</th><th>读作</th><th>含义</th><th>形状</th></tr></thead>
+      <tbody>
+        <tr><td>e<sub>tj</sub></td><td>对齐分数 / 能量</td><td>「解码第 t 步」和「原文第 j 个位置」有多般配。<b>还没归一化</b>，可以是任意实数</td><td>1 个数（标量）</td></tr>
+        <tr><td>t</td><td>解码步</td><td>正在生成第几个译文词</td><td>整数 1…T′</td></tr>
+        <tr><td>j</td><td>原文位置</td><td>原文的第几个词</td><td>整数 1…T</td></tr>
+        <tr><td>a( · , · )</td><td>对齐模型</td><td>就是右边那一长串<b>本身</b>——一个小的前馈网络。下标 a 是 alignment 的缩写</td><td>一个函数</td></tr>
+        <tr><td>s<sub>t−1</sub></td><td>解码器上一步状态</td><td>「我此刻想表达什么」</td><td><b>n 维</b>向量</td></tr>
+        <tr><td>h<sub>j</sub></td><td>原文第 j 个位置的编码</td><td>双向 RNN 拼出来的注解（annotation），<b>已经含左右两侧的上下文</b></td><td><b>2n 维</b>向量</td></tr>
+        <tr><td>W<sub>a</sub></td><td>对齐模型·解码侧权重</td><td>把 s 从「解码空间」搬到「打分空间」</td><td>矩阵 n × n</td></tr>
+        <tr><td>U<sub>a</sub></td><td>对齐模型·编码侧权重</td><td>把 h 从「编码空间」搬到「打分空间」</td><td>矩阵 n × 2n</td></tr>
+        <tr><td>u</td><td>tanh 的输出（讲解用的临时记号）</td><td>打分空间里那 <b>n 个数</b>的「表现单」，每个维度描述「这一对 (t, j) 在这一点上表现如何」。论文原文没有单独给它取名——它是式子里的中间结果</td><td><b>n 维</b>向量</td></tr>
+        <tr><td><b>v<sub>a</sub></b></td><td>对齐模型·输出权重<br><span class="muted">＝那 1 个输出神经元的权重</span></td><td>给打分空间的 <b>n 个维度各配一个权重</b>，把 u 加权求和（＝点积）成 <b>1 个分数</b>。它<b>不随 t、j 变化</b>，同一份 v<sub>a</sub> 用遍所有 (t, j)，所以它代表的是一套<b>通用的「匹配标准」</b>——和 W<sub>a</sub>、U<sub>a</sub> 一样是可学的参数（字母本身没有额外含义）</td><td>向量 n 维</td></tr>
+        <tr><td>tanh( · )</td><td>双曲正切</td><td>逐元素的非线性函数，把数值压到 (−1, 1)</td><td>不改变形状</td></tr>
+        <tr><td>上标 ᵀ</td><td>转置</td><td>把列向量转成行向量——<b>只有这样做点积才能得到一个标量</b>。<code>v<sub>a</sub><sup>T</sup>u</code> 就是<b>点积</b> ⟨v<sub>a</sub>, u⟩，也等于「加权求和」</td><td>n 维 → 1×n</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note" style="margin-top:0">
+    <b>三个容易看漏的细节：</b><br>
+    ① <code>W<sub>a</sub></code>、<code>U<sub>a</sub></code>、<code>v<sub>a</sub></code> 里的下标 <b>a 不是变量</b>，只是标注「这三个参数属于对齐模型」；<br>
+    ② 式子里<b>没有偏置项 b</b>——这是论文的原样写法；<br>
+    ③ <code>h<sub>j</sub></code> 之所以是 2n 维，是因为双向 RNN 把「从左往右读到的」和「从右往左读到的」<b>首尾拼</b>在了一起。
+  </div>
+
+  <h4 style="margin-top:26px">它背后的网络结构：一个只有一层隐层的小 MLP</h4>
+  <p>把公式按数据流画出来，结构其实非常朴素——<b>两条支路各自做一次线性变换，把两边的东西搬到同一个空间里，再相加、过 tanh、最后汇总成一个数</b>：</p>
+
+  <div class="demo" id="alignDemo">
+    <div class="demo-head">
+      <span class="demo-title">演示 6 · 对齐模型 a(·,·) 的内部结构</span>
+      <div class="demo-ctl"><span class="muted" style="font-size:12.5px">点方框，看它在算哪一步</span></div>
+    </div>
+    <div class="stage">
+      <div class="eddwrap"><svg class="edd" id="alignSvg" viewBox="0 0 900 300" role="img" aria-label="Bahdanau 对齐模型的网络结构"></svg></div>
+      <div class="readout" id="alignNetMsg">这个网络的任务只有一个：吃进 s<sub>t−1</sub> 和 h<sub>j</sub>，吐出一个数 e<sub>tj</sub>。整句翻译里有 T′×T 对 (t, j)，它就要被算 T′×T 次。</div>
+    </div>
+  </div>
+
+  <p>其中<b>相加那一步是逐元素相加</b>（对应位置的数两两相加，得到 n 个数），<b>tanh 也是逐个数作用</b>。所以整条链路从头到尾都是 n 维、n 维、n 维……只在最后 <code>v<sub>a</sub><sup>T</sup></code> 那一下才塌缩成 1 个数。</p>
+
+  <div class="formula" style="line-height:2.6">
+    tanh( <span class="fk">W<sub>a</sub></span>s + <span class="fk">U<sub>a</sub></span>h ) ＝ tanh( [ <span class="fk">W<sub>a</sub></span> | <span class="fk">U<sub>a</sub></span> ] · [ s ; h ] )　　<span class="cm">// s 和 h 首尾拼起来，两个矩阵也并排放</span>
+  </div>
+  <div class="answer" style="margin-top:14px">
+    <div class="big" style="font-size:16.5px">所以它其实就是一个标准的前馈神经网络，只不过入口处被「劈」成了两半。</div>
+    <p>把 s<sub>t−1</sub>（n 维）和 h<sub>j</sub>（2n 维）<b>首尾拼成一个 3n 维向量</b>喂进去：</p>
+    <p style="margin-bottom:0">· 隐层：n 个神经元，激活函数是 tanh，<b>没有偏置</b>；<br>
+    · 输出层：<b>只有 1 个神经元</b>，权重就是 v<sub>a</sub>；<br>
+    · 输出：一个实数 e<sub>tj</sub>。<br>
+    论文给这个网络起的名字就是 <b>alignment model（对齐模型）</b>。所谓「学对齐」，学的就是这三个参数里的每一个数。</p>
+  </div>
+
+  <div class="grid2" style="margin:16px 0">
+    <div class="kv"><b>为什么要 tanh？</b><span>如果拿掉它，<code>v<sub>a</sub><sup>T</sup>(W<sub>a</sub>s + U<sub>a</sub>h)</code> 会合并成一次<b>纯线性</b>的打分——表达能力约等于「把两个向量各自投影一下再点积」。加上 tanh 之后，模型才有能力表达「只有某种组合出现时才给高分」这类<b>非线性</b>的匹配条件。</span></div>
+    <div class="kv"><b>为什么最后要 v<sub>a</sub><sup>T</sup>？</b><span>tanh 之后拿到的是 <b>n 个数</b>，每个维度都在描述「哪方面像」。这 n 个数需要被汇总成 1 个分数才能做 softmax。点积就是最简单的汇总方式：<b>给每一维配一个权重，然后加起来</b>。v<sub>a</sub> 就是那组权重，也是学出来的。</span></div>
+  </div>
+
+  <h4 style="margin-top:30px">v<sub>a</sub> 是怎么来的？——它不是额外零件，是「1 个输出神经元」的必然产物</h4>
+  <p>很多人第一次看到这条式子，会卡在最后那个 <code>v<sub>a</sub><sup>T</sup></code> 上：<b>前面两条支路还看得懂，这东西是哪儿冒出来的？</b>把它倒过来推，其实只有三步：</p>
+
+  <div class="grid3" style="margin:16px 0">
+    <div class="kv"><b>第 1 步 · 出口规定了形状</b><span>e<sub>tj</sub> 接下来要被丢进 softmax。softmax 只吃<b>一个数</b>。所以不管打分函数内部多复杂，它的<b>输出必须是标量</b>——这是一条硬约束。</span></div>
+    <div class="kv"><b>第 2 步 · n 个数 → 1 个数</b><span>tanh 吐出来的是 n 个数 u。要把 n 个数折成 1 个数，最一般的<b>可学习线性汇总</b>只有一种写法：<code>w₁u₁+w₂u₂+…+wₙuₙ</code>，也就是 <code>w<sup>T</sup>u</code>。</span></div>
+    <div class="kv"><b>第 3 步 · 给它起个名字</b><span>论文把这组汇总权重 <code>w</code> 命名为 <code>v<sub>a</sub></code>，并省掉偏置 b。于是就有了 e<sub>tj</sub> = v<sub>a</sub><sup>T</sup>u。</span></div>
+  </div>
+
+  <div class="formula" style="line-height:2.7">
+    e<sub>tj</sub> = <span class="fk">v<sub>a</sub></span><sup>T</sup> <span style="color:#7c3aed;font-weight:700">u</span>　　<span class="cm">// u = tanh(W<sub>a</sub>s<sub>t−1</sub> + U<sub>a</sub>h<sub>j</sub>)，n 维</span><br>
+    形状检查　<span class="mono">(1 × n) · (n × 1) = (1 × 1)</span>　　<span class="cm">// 一次点积 = 加权求和 = 塌缩成一个数</span>
+  </div>
+
+  <div class="answer" style="margin-top:14px">
+    <div class="big" style="font-size:16.5px">所以 v<sub>a</sub> 就是「输出层那 1 个神经元的权重」。</div>
+    <p style="margin-bottom:0">任何「让神经网络输出一个标量」的地方，都必然有这样一组权重。它不是 Bahdanau 额外加上的零件，而是这个结构里<b>躲不掉</b>的一环：隐层给出 n 个数，输出层只有 1 个神经元，连接它们的就是 n 条边——那 n 条边的强度，就是 v<sub>a</sub>。</p>
+  </div>
+
+  <p>打个比方：<b>u 是「这一对 (t, j) 的表现单」，v<sub>a</sub> 是「阅卷细则」</b>。u 的 n 个维度就像 n 项考察点，每个维度上的数值表示「这一对在这一点上表现如何」（可正可负）；v<sub>a</sub> 里的 n 个数则是「每一项占多少分、是加分还是扣分」。<mark>打分 ＝ 按细则给表现单打分</mark>。</p>
+  <p>关键在后面这一句：<b>同一份 v<sub>a</sub> 被用在所有 (t, j) 上</b>。它不是某一对的数据，而是一套<b>通用的匹配标准</b>——模型学的就是「什么样的 s 和 h 组合算般配」。对比一下 Transformer：那里的 q 随 t 变、k 随 j 变，而 Bahdanau 的 v<sub>a</sub> 谁也不随，它<b>就是那个被学出来的标准本身</b>。</p>
+
+  <div class="demo" id="vaDemo" style="margin-top:20px">
+    <div class="demo-head">
+      <span class="demo-title">演示 7 · v<sub>a</sub> 就是一套「打分权重」</span>
+      <div class="demo-ctl"><span class="muted" style="font-size:12.5px">拖动滑块改 v<sub>a</sub>，看 e<sub>tj</sub> 怎么变</span></div>
+    </div>
+    <div class="stage">
+      <p class="muted" style="font-size:12.5px;margin:0 0 10px">真实模型里 n＝1000，这里只拿 <b>3 维</b>做玩具演示。绿色 u ＝ 这一对 (t, j) 在三个维度上的「表现」（<b>换一个词它就变</b>）；紫色 v<sub>a</sub>（可拖）＝ 那套打分权重。<b>下面两组按钮分别改这两样东西</b>，注意对比：改 u 时 v<sub>a</sub> 一个数都没动。</p>
+      <div class="vatbl">
+        <div class="varow vah"><span>维度</span><span>u：这一对的表现（换词就变）</span><span>v<sub>a</sub>：汇总权重（可拖）</span><span>v · u</span></div>
+        <div class="varow"><span class="mono">第 1 维</span><span class="u mono" id="vaU0">–</span><span class="sl"><input type="range" id="vaS0" min="-2" max="2" step="0.1" value="1"><b class="mono" id="vaL0"></b></span><span class="p mono" id="vaP0">–</span></div>
+        <div class="varow"><span class="mono">第 2 维</span><span class="u mono" id="vaU1">–</span><span class="sl"><input type="range" id="vaS1" min="-2" max="2" step="0.1" value="1"><b class="mono" id="vaL1"></b></span><span class="p mono" id="vaP1">–</span></div>
+        <div class="varow"><span class="mono">第 3 维</span><span class="u mono" id="vaU2">–</span><span class="sl"><input type="range" id="vaS2" min="-2" max="2" step="0.1" value="1"><b class="mono" id="vaL2"></b></span><span class="p mono" id="vaP2">–</span></div>
+      </div>
+      <div class="vasum"><span>e<sub>tj</sub> = v<sub>a</sub><sup>T</sup>u ＝</span><b id="vaE">–</b><span class="muted" style="font-weight:400">← 三个乘积相加，这就是点积；n＝1000 时就是 1000 个乘积相加</span></div>
+      <div class="va-lab">② 固定 v<sub>a</sub> 不动，只把原文的词换掉（改的是 h<sub>j</sub> ⇒ u 变）</div>
+      <div class="va-btns" id="vaToks">
+        <button class="btn" data-vau="苹果">h<sub>j</sub> ← 「苹果」</button>
+        <button class="btn" data-vau="掉">h<sub>j</sub> ← 「掉」</button>
+        <button class="btn" data-vau="地上">h<sub>j</sub> ← 「地上」</button>
+        <button class="btn" data-vau="熟">h<sub>j</sub> ← 「熟」</button>
+      </div>
+      <div class="va-lab">① 反过来：u 不动，只改 v<sub>a</sub> 这组权重</div>
+      <div class="va-btns">
+        <button class="btn" data-vap="even">均匀权重 [1, 1, 1]</button>
+        <button class="btn" data-vap="dim0">只看第 1 维 [1, 0, 0]</button>
+        <button class="btn" data-vap="neg">整体取反 [−1, −1, −1]</button>
+        <button class="btn" data-vap="zero">全零 [0, 0, 0]</button>
+      </div>
+      <div class="readout" id="vaMsg">–</div>
+    </div>
+  </div>
+
+  <div class="grid3" style="margin:16px 0">
+    <div class="kv"><b>v<sub>a</sub> 的长度要自己选吗？</b><span>不用。它的长度 ＝ 打分空间的维度 n，而 n 是 <code>W<sub>a</sub></code> 的输出宽度<b>决定</b>的。定了 W<sub>a</sub>，v<sub>a</sub> 的长度就跟着定了——三个参数是长在一起的。</span></div>
+    <div class="kv"><b>上标 ᵀ 到底在干嘛？</b><span>纯粹是书写约定：<b>列向量</b>转成<b>行向量</b>才好写乘法。v<sub>a</sub><sup>T</sup>u 和点积 ⟨v<sub>a</sub>, u⟩ 是<b>同一件事</b>。要是写成 v<sub>a</sub>u<sup>T</sup>，那就变成 n×n 矩阵了——完全是另一个东西。</span></div>
+    <div class="kv"><b>为什么它跟 t、j 都无关？</b><span>因为它是<b>标准</b>，不是<b>数据</b>。如果 v<sub>a</sub> 也随位置变，模型就不是在「学一种匹配方式」，而是在「背每一对的答案」——参数会爆掉，也泛化不了。</span></div>
+  </div>
+
+  <h4 style="margin-top:30px">追问：解码的时候，v<sub>a</sub> 是固定的吗？</h4>
+  <div class="answer" style="margin-top:0">
+    <div class="big" style="font-size:16.5px">是——v<sub>a</sub> 训练完就被彻底冻结，解码全程一个数都不变。</div>
+    <p style="margin-bottom:0">这里要分清两类东西：<b>参数</b>（W<sub>a</sub>、U<sub>a</sub>、v<sub>a</sub>，以及两个 RNN 的全部权重）只在<b>训练时</b>被梯度更新；<b>状态</b>（s<sub>t−1</sub>、h<sub>j</sub>、e<sub>tj</sub>、α<sub>tj</sub>、c<sub>t</sub>）是解码时才现算出来的。v<sub>a</sub> 属于前者，所以它<b>不随 t 变、不随 j 变，换一个句子也不变</b>。</p>
+  </div>
+
+  <div class="tblwrap" style="margin:16px 0">
+    <table class="tbl flat">
+      <thead><tr><th>解码过程中的东西</th><th>属于</th><th>同一次翻译里</th><th>换一个句子</th></tr></thead>
+      <tbody>
+        <tr><td>W<sub>a</sub> / U<sub>a</sub> / <b>v<sub>a</sub></b></td><td>参数</td><td><b>固定</b>，一个数都不变</td><td>也固定（所有句子共用同一套）</td></tr>
+        <tr><td>h<sub>1</sub> … h<sub>T</sub></td><td>编码结果</td><td><b>固定</b>：编码一次，全程复用</td><td>随句子变</td></tr>
+        <tr><td>s<sub>t−1</sub></td><td>解码状态</td><td><b>每步都变</b>——这才是「随 t 变」的那一半</td><td>随句子变</td></tr>
+        <tr><td>e<sub>tj</sub> / α<sub>tj</sub> / c<sub>t</sub></td><td>当场算出的中间量</td><td><b>每步重算</b></td><td>随句子变</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>所以准确的说法是：<b>打分标准（v<sub>a</sub>）是固定的，被比较的对象（s<sub>t−1</sub>）才是变的那一方。</b>同一把尺子，每一步去量不同的东西——这就是前面说的「一套通用标准」的实际含义：所谓「注意力学会了看哪里」，学的是<b>这把尺子</b>，不是每一步的答案。</p>
+
+  <p>顺带一个很实用的推论：既然 <code>U<sub>a</sub>h<sub>j</sub></code> 里<b>既不含 s<sub>t−1</sub>、也不含 t</b>，它就可以在解码开始前<b>一次算好、缓存起来</b>；之后每一步只需要算 <code>W<sub>a</sub>s<sub>t−1</sub></code>，再相加、过 tanh、与 v<sub>a</sub> 做点积。<mark>「v<sub>a</sub> 与 t 无关」这件事，直接换来了一个可预计算的缓存。</mark></p>
+
+  <div class="note">
+    <b>跟 Transformer 对照着看会更清楚。</b>Transformer 里的 W<sub>Q</sub>、W<sub>K</sub>、W<sub>V</sub> 同样是<b>固定参数</b>，但它把「我此刻想找什么」从<b>状态</b>搬进了<b>数据</b>：每个位置都用同一套 W<sub>Q</sub> 乘出自己的 q。于是 q 随位置变、k 随位置变——好处是<b>所有分数能凑成一次矩阵乘法 QK<sup>T</sup></b>，代价是每换一个句子、每换一层，这套投影都得重算一遍。
+    一边用「打分权重固定」换来缓存，一边用「投影固定、向量可变」换来并行。
+  </div>
+
+  <h4 style="margin-top:30px">那「不同词之间的权重不同」这件事，是谁在负责？</h4>
+  <p>这是一个非常关键的疑问：<b>v<sub>a</sub> 固定死了，怎么还能表示不同词之间千差万别的权重关系？</b>答案其实是一句改名字的话：<b>你说的那个「随词而变的东西」确实存在，只是它不叫 v<sub>a</sub>，它叫 α<sub>tj</sub>。</b></p>
+
+  <div class="tblwrap" style="margin:16px 0">
+    <table class="tbl flat">
+      <thead><tr><th>层次</th><th>具体是谁</th><th>训练完之后</th><th>换成别的句子</th></tr></thead>
+      <tbody>
+        <tr><td>规则层 · 参数</td><td>W<sub>a</sub>、U<sub>a</sub>、<b>v<sub>a</sub></b></td><td>冻结，一个数不变</td><td>不变（共用同一套）</td></tr>
+        <tr><td>对象层 · 输入</td><td>s<sub>t−1</sub>、h<sub>1</sub>…h<sub>T</sub></td><td>—</td><td><b>全变</b></td></tr>
+        <tr><td>结论层 · 现算</td><td>e<sub>tj</sub> → <b>α<sub>tj</sub></b> → c<sub>t</sub></td><td>—</td><td><b>全变</b>：每一对 (t, j) 都不相同</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p><b>「不同词之间的权重关系」属于第三层。</b>原文 14 个词、译文 14 个词，就有 14×14 ＝ 196 个 α<sub>tj</sub>，它们各不相同、随句子而变——你想要的东西一个都没少。第一层的 v<sub>a</sub> 只负责<b>规则</b>：拿什么标准去打分。</p>
+
+  <div class="grid2" style="margin:16px 0">
+    <div class="kv"><b>尺子不用变，量出来的长度照样各不相同</b><span>一把刻度固定的尺子，量桌子和量铅笔会给出不同的数——因为<b>被量的东西不一样</b>。e<sub>tj</sub> 里「被量的东西」是 s<sub>t−1</sub> 和 h<sub>j</sub>，它们每一步、每个位置都在变。</span></div>
+    <div class="kv"><b>别忘了：整个模型的参数都是固定的</b><span>W<sub>x</sub>、W<sub>h</sub> 也是固定的——可就是这一套固定的参数，读得懂任何句子。如果「参数固定就表达不了差异」成立，那 RNN 连一句话都读不懂。<b>变化来自输入，不来自参数</b>，这是神经网络最基本的约定。</span></div>
+  </div>
+
+  <p>再举一个更极端的例子：<b>哪怕把 tanh 整个拿掉</b>，让打分退化成一次纯线性的双线性形式，每一对词照样能得到不同的分数。Transformer 走的就是这条路：</p>
+  <div class="formula" style="line-height:2.7">
+    e<sub>tj</sub> = <span class="fq">q</span><sub>t</sub> · <span class="fv">k</span><sub>j</sub> = <span class="fq">x</span><sub>t</sub><sup>T</sup> ( <span class="fk">W<sub>Q</sub><sup>T</sup>W<sub>K</sub></span> ) <span class="fv">x</span><sub>j</sub>　　<span class="cm">// 括号里的比较矩阵固定不动，变的是两边乘进去的 x</span>
+  </div>
+  <p>看仔细：<code>W<sub>Q</sub><sup>T</sup>W<sub>K</sub></code> 是一个<b>训练完就冻死</b>的矩阵，它就是 v<sub>a</sub> 在乘法式注意力里的对应物；可 <code>q<sub>t</sub></code>、<code>k<sub>j</sub></code> 每个位置都不一样，于是每个 e<sub>tj</sub> 都不一样。<mark>固定的是「怎么比」，变化的是「比谁」——这两件事从来不在同一个地方。</mark></p>
+  <p class="muted">最后补一句：如果真想让「比较规则本身」也随输入而变，那是另一条路（条件计算，或多头注意力里让不同的头学不同的规则）。但即便在那种模型里，<b>参数依旧是固定的</b>，随输入变的始终是中间算出来的那些张量。</p>
+
+  <h4 style="margin-top:26px">可它为什么要写得这么绕？跟点积有什么不一样</h4>
+  <div class="grid2" style="margin:14px 0">
+    <div class="kv"><b>Bahdanau 用的：加法式（additive）</b><span>先把两边<b>各自投影到同一个 n 维空间</b>再相加，中间还夹了一层非线性。好处是不要求 s 和 h 的维度相同，表达能力也更强；代价是慢（见下）。</span></div>
+    <div class="kv"><b>Transformer 用的：乘法式（multiplicative）</b><span>直接 <code>q·k</code> 点积打分。要求两边维度一致，但<b>干净到可以写成一次矩阵乘法 <code>QK<sup>T</sup></code></b>，一次把所有分数全算完。这正是第 4 章要讲的转变。</span></div>
+  </div>
+  <p>这两类后来被 Luong 等人在 2015 年的论文里正式命名并做了对比。<mark>Bahdanau 选了「用算力换表达力」，Transformer 选了「用表达力换并行」</mark>——你在第 4 章看到的 <code>QK<sup>T</sup>/√d<sub>k</sub></code>，就是这条路线上的终点。</p>
+
+  <h4 style="margin-top:26px">代价：为了打分，要付多少</h4>
+  <div class="grid2" style="margin:14px 0">
+    <div class="kv"><b>参数：3n² + n 个</b><span>W<sub>a</sub> 是 n×n＝n² 个，U<sub>a</sub> 是 n×2n＝2n² 个，v<sub>a</sub> 是 n 个。以 n＝1000（论文量级）为例，光这个「打分小网络」就要背 <b>约 300 万个参数</b>——和整个编码器一个量级。</span></div>
+    <div class="kv"><b>计算：T′ × T 次前向</b><span>每写一个译文词（共 T′ 步），都要和原文的每一个位置（共 T 个）算一次这个小网络。原文 50 个词、译文 50 个词，就是 <b>2500 次</b>。而且这 2500 次只能<b>一次一对地算</b>，凑不成一次大矩阵乘法。</span></div>
+  </div>
+  <p>记住这两个数字——它们解释了三年后 Transformer 为什么要动手改掉这个打分方式。</p>
+
+  <div class="quote">
+    <b>论文自己的说法：</b>这个对齐模型不是单独预训练的，也不是人工标注的，而是<b>和其他所有部件一起训练</b>的；梯度可以穿过打分函数直接回传。
+    这就是标题里 <b>Jointly Learning to Align and Translate</b>（联合学习对齐与翻译）的字面含义——<b>对齐不是副产品，它是被翻译这个目标「逼」出来的</b>。
+  </div>
+
+
+  <h4>② 归一化：把一堆分数变成一堆权重</h4>
+  <div class="formula">
+    α<sub>tj</sub> = <span class="frac"><span>exp(e<sub>tj</sub>)</span><span>Σ<sub>k=1..T</sub> exp(e<sub>tk</sub>)</span></span>
+    　　<span class="cm">// softmax，让所有权重为正且加起来等于 1</span>
+  </div>
+  <p>得到的 α<sub>tj</sub> 就是「注意力权重」。它可以是 0.7、0.2 这种含义清晰的数：<strong>这次我要 70% 看第 3 个词，20% 看第 7 个词</strong>。这被称为<strong>软对齐（soft alignment）</strong>——不硬性指定「一对一」，而是允许同时看几个地方。</p>
+
+  <h4>③ 加权求和：现场调制一杯「本次专用的上下文」</h4>
+  <div class="formula">
+    <span class="fv">c</span><sub>t</sub> = <span style="color:var(--acc);font-weight:700">Σ</span><sub>j=1..T</sub> α<sub>tj</sub> <span class="fv">h</span><sub>j</sub>
+    　　<span class="cm">// 按权重把原文所有位置的信息混合成一个向量</span>
+  </div>
+  <p>然后再用这个 <strong>c<sub>t</sub></strong> 和 s<sub>t−1</sub> 算出新的解码状态 s<sub>t</sub>，并预测出这个词。用公式串起来就是：</p>
+  <div class="formula">
+    s<sub>t</sub> = f( s<sub>t−1</sub> , y<sub>t−1</sub> , <span class="fk">c<sub>t</sub></span> )　　p(y<sub>t</sub> | …) = softmax( g( s<sub>t</sub> , y<sub>t−1</sub> , <span class="fk">c<sub>t</sub></span> ) )
+  </div>
+
+  <div class="quote">
+    <b>整个论文的转折点就在这个下标 t 上。</b>旧模型用的是 <b>c</b>——一个<strong>从头到尾不变</strong>的向量。
+    Bahdanau 用的是 <b>c<sub>t</sub></b>——<strong>每写一个词都重新算一次</strong>的向量。
+    <br>这一个下标，就是「瓶颈」和「注意力」的全部分界线。
+  </div>
+
+  <h3>2.4 亲手跑一遍：逐词翻译，看它在看哪里</h3>
+  <p class="muted">下面是论文 Figure 1 的原句。每一步都会真正走完「打分 → softmax → 加权求和 → 吐出一个词」的完整流程。</p>
+
+  <div class="demo" id="trDemo">
+    <div class="demo-head">
+      <span class="demo-title">演示 8 · 注意力的三步循环</span>
+      <div class="demo-ctl">
+        <button class="btn primary" id="trStep">下一步 ▶</button>
+        <button class="btn" id="trAuto">自动播放</button>
+        <button class="btn" id="trReset">重来</button>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="tr-col" style="margin-bottom:16px">
+        <h5>源句（编码器为每个位置都留了一个 h<sub>j</sub>）</h5>
+        <div class="toks" id="trSrc"></div>
+      </div>
+      <div class="tr-panel">
+        <div class="tr-col">
+          <h5>① 打分 e<sub>tj</sub> → ② 权重 α<sub>tj</sub></h5>
+          <div class="scorelist" id="trScores"><div class="ghost">—— 点「下一步」开始 ——</div></div>
+          <div class="legend" style="margin-top:10px">
+            <span class="pill w">黄条 = 原始分数 e</span><span class="pill">紫条 = 归一化后的 α</span>
+          </div>
+        </div>
+        <div class="tr-col">
+          <h5>③ 加权求和得到 c<sub>t</sub>，再吐出译文词</h5>
+          <div class="readout" id="trCalc" style="min-height:110px">等待第一次计算…</div>
+          <div class="muted" style="font-size:12.5px;margin-top:10px;font-weight:700">c<sub>t</sub> 的样子（每格 = 一个维度的数值）</div>
+          <div class="ctxstrip" id="trCtx"></div>
+          <h5 style="margin-top:16px">已经生成的译文</h5>
+          <div class="outline" id="trOut"></div>
+        </div>
+      </div>
+    </div>
+    <div class="readout" id="trMsg">鼠标移到源句的词上，也能看到它当前的权重。</div>
+  </div>
+
+  <h3>2.5 模型自己学出来的对齐：一张几乎完美的斜线</h3>
+  <p>最令人惊讶的是：<strong>没有任何人告诉过模型哪个词对应哪个词</strong>。它只是被要求「翻译得准」，却在内部自发形成了词对齐。论文把这个矩阵画了出来：横轴是英文，纵轴是法文，每一行表示「生成这个法文词时，目光落在哪些英文词上」。</p>
+
+  <div class="demo">
+    <div class="demo-head">
+      <span class="demo-title">图 2 · 注意力权重矩阵（论文 Figure 3/4 示意）</span>
+      <div class="demo-ctl"><span class="muted" style="font-size:12.5px">鼠标悬停看数值 · 点击某一行锁定</span></div>
+    </div>
+    <div class="stage">
+      <div class="hmwrap"><div class="heat" id="alignHeat"></div></div>
+      <div class="legend"><span>0</span><div class="grad"></div><span>1</span><span style="margin-left:12px">颜色越深 = 生成这个法文词时越依赖这个英文词</span></div>
+      <div class="readout" id="alignMsg">提示：<b>日语和英语的语序差异更大</b>时，这条斜线会整体倾斜——对齐矩阵能直观看出两种语言的语序关系。</div>
+    </div>
+  </div>
+
+  <h3>2.6 结果：不只是分数变高，是「不再变差」</h3>
+  <div class="grid3">
+    <div class="kv"><b>📈 BLEU 大幅提升</b><span>在 WMT'14 英法上，RNNsearch（带注意力）显著超过 RNNencdec（不带），并且优于当时基于短语的统计机器翻译系统。</span></div>
+    <div class="kv"><b>📏 长句不再崩</b><span>论文最重要的结论之一：<strong>BLEU 不再随句长下降</strong>。在长句上，带注意力的模型甚至反超短句表现。</span></div>
+    <div class="kv"><b>🔍 自带可解释性</b><span>注意力矩阵 ≈ 词对齐，可以画出来看。这让神经机器翻译第一次「不那么黑箱」。</span></div>
+  </div>
+
+  <div class="note">
+    <b>这个思想后来跑到了翻译之外。</b>「用当前状态去检索一组带权重的记忆」这个模式，成了通用工具：语音识别、图像描述、阅读理解、句法分析……以及三年后的 Transformer。
+    所以 Transformer 论文在引言里直接写道，它沿用的是 <b>Bahdanau 等人提出的注意力机制</b>——这就是你听到的「灵感来源」。
+  </div>
+</section>
+
+<!-- ================= 第 3 章 ================= -->
+<section id="ch3" class="chap reveal">
+  <div class="eyebrow warm">第 ③ 章 · 新的枷锁</div>
+  <h2>注意力很聪明，但它坐在一个很慢的引擎上</h2>
+  <p class="sub">Bahdanau 的注意力是挂在 RNN 上的一个附件。而 RNN 本身，有一个改不掉的天性。</p>
+
+  <h3>3.1 RNN 必须「一个一个来」</h3>
+  <p>看这个公式：<code>h<sub>t</sub> = f(h<sub>t−1</sub>, x<sub>t</sub>)</code>。第 5 个词的隐藏状态，必须等第 4 个算完才能开始算。这句话的潜台词是：<mark>句子有 50 个词，就必须老老实实走 50 个串行步骤</mark>。</p>
+  <p>GPU 最擅长的恰恰是「同时做一万件互不依赖的事」。可 RNN 偏偏把它变成了一场接力赛——跑道上有再多人也只能排队。这带来三个后果：</p>
+
+  <div class="grid3" style="margin:18px 0">
+    <div class="kv"><b>🐌 训练慢到离谱</b><span>2017 年训练一个顶级翻译模型要以「几天」甚至「几周」计。想再加大模型？先算算电费和时间。</span></div>
+    <div class="kv"><b>🔗 长距离仍然费劲</b><span>即使有注意力，两个相隔 40 步的词之间仍然横亘着 40 次连乘，梯度容易衰减或爆炸。</span></div>
+    <div class="kv"><b>🧩 注意力只是配件</b><span>它依附于「s<sub>t−1</sub> 从哪来」——而 s<sub>t−1</sub> 来自 RNN。没有 RNN 就没有 query。这个依赖关系是关键。</span></div>
+  </div>
+
+  <div class="demo" id="raceDemo">
+    <div class="demo-head">
+      <span class="demo-title">演示 9 · 接力赛 vs 齐步走</span>
+      <div class="demo-ctl"><button class="btn primary" id="racePlay">▶ 同时开始</button></div>
+    </div>
+    <div class="stage">
+      <div class="race">
+        <div class="racebox">
+          <div style="text-align:center;font-weight:800;font-size:14px">RNN（Bahdanau 用的）</div>
+          <div class="nodes" id="raceA"></div>
+          <div class="clock" id="clockA">时刻 0 / 6</div>
+          <div class="timebar"><i id="barA"></i></div>
+          <div class="muted" style="font-size:12.5px;text-align:center;margin-top:8px">必须等上一步算完 · 总耗时 = 6 个时间步</div>
+        </div>
+        <div class="racebox">
+          <div style="text-align:center;font-weight:800;font-size:14px">无 RNN 的注意力（Transformer 的思路）</div>
+          <div class="nodes" id="raceB"></div>
+          <div class="clock" id="clockB">时刻 0 / 1</div>
+          <div class="timebar teal"><i id="barB"></i></div>
+          <div class="muted" style="font-size:12.5px;text-align:center;margin-top:8px">所有位置同时计算 · 总耗时 = 1 个时间步</div>
+        </div>
+      </div>
+      <div class="readout" id="raceMsg">点「同时开始」——注意看两边的进度条。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 第 4 章 ================= -->
+<section id="ch4" class="chap reveal">
+  <div class="eyebrow teal">第 ④ 章 · Transformer</div>
+  <h2>既然「回头看一眼」这么好用，能不能只要它？</h2>
+  <p class="sub">
+    <strong>Attention Is All You Need</strong><br>
+    Vaswani 等 8 人 · Google Brain / Google Research — arXiv:1706.03762（2017 年 6 月，NeurIPS 2017）
+  </p>
+
+  <p class="lead">这篇论文标题起得极为嚣张，也极为准确：<strong>你需要的，只有注意力</strong>。它把 RNN 整个删掉，让每个词直接「看到」句子里的所有其他词。</p>
+
+  <p>可是删掉 RNN 会撞上一个硬问题：</p>
+  <div class="quote">
+    Bahdanau 的注意力里，query（那个「我要找什么」）是 <b>s<sub>t−1</sub></b>——<b>解码器 RNN 的状态</b>。
+    RNN 没了，<b>query 从哪来？</b>
+  </div>
+  <p>Transformer 的回答漂亮极了：<mark><strong>从句子自己身上来。</strong></mark>原文的每个词，自己生成一个 query，去问同一句话里的其他所有词。这叫<strong>自注意力（Self-Attention）</strong>：一句话自己问自己。</p>
+
+  <h3>4.1 那 Q、K、V 到底是什么？</h3>
+  <p>先把三个概念用生活场景说清楚。假设你在一个超大的图书馆里找资料：</p>
+
+  <div class="qkv-grid">
+    <div class="qkv q"><b>Query（查询）· Q</b><p>「<strong>我要找什么</strong>」——你手里拿的那张纸条，写着你的需求。</p><span class="em">在句子里：我读到「它」，我想搞清楚「它指的是谁」。</span></div>
+    <div class="qkv k"><b>Key（键）· K</b><p>「<strong>我这儿挂什么标签</strong>」——每本书书脊上的分类标签，用来被检索、被比对。</p><span class="em">在句子里：每个词举一块牌子：「我是水果」「我是动词」「我是代词」。</span></div>
+    <div class="qkv v"><b>Value（值）· V</b><p>「<strong>我这儿实际有什么内容</strong>」——真正被取走、被带回家的那部分信息。</p><span class="em">在句子里：一旦匹配上「苹果」，就把苹果的语义内容搬过来，用来理解「它」。</span></div>
+  </div>
+
+  <p>注意力和「翻字典」的区别：字典要求 query 和 key <strong>完全相等</strong>才有结果；注意力里 <strong>每个 key 都返回一个分数</strong>，最后按分数高低把所有 value 混合起来——这就是「软」的含义。</p>
+
+  <h3>4.2 关键一步：Q/K/V 是从 Bahdanau 的公式里自然长出来的</h3>
+  <p>这是全文最值得慢慢读的一段。我们不凭空发明 QKV，而是从 Bahdanau 的公式出发，看它怎么一步步被改造成 Transformer 的样子。</p>
+
+  <div class="card">
+    <h4 style="margin-top:0">起点 · Bahdanau 的注意力</h4>
+    <div class="formula" style="border-left-color:var(--ink3)">
+      e<sub>tj</sub> = a( <span class="fq">s<sub>t−1</sub></span> , h<sub>j</sub> )　；　α<sub>t·</sub> = softmax(e<sub>t·</sub>)　；　c<sub>t</sub> = Σ<sub>j</sub> α<sub>tj</sub> h<sub>j</sub>
+    </div>
+    <p class="muted" style="margin-bottom:0">「解码器的状态」去比「每个源词的编码」，然后加权取走「每个源词的编码」。</p>
+  </div>
+
+  <h4>改动 ①：把「解码器问编码器」变成「句子内部互相问」</h4>
+  <p>既然没有 RNN 提供 s<sub>t−1</sub>，那就让<strong>句子里的每个词</strong>都发一张查询纸条。第 <em>i</em> 个词用它自己的表示 x<sub>i</sub> 当 query，去和所有位置的表示比对。于是「一对多」（解码器 → 编码器）变成了「多对多」（每个词 → 所有词）。这就是自注意力。</p>
+
+  <h4>改动 ②：把「打分用的向量」和「取走用的向量」拆开</h4>
+  <p>这一步最容易被忽略，但它是 K 和 V 存在的根本原因。</p>
+  <p>在 Bahdanau 里，第 j 个词参与了两件事，用的是<strong>同一个 h<sub>j</sub></strong>：
+  <br>（a）被当作「靶子」来打分（我要不要看它）；
+  <br>（b）被当作「内容」加权取走（我从它那儿拿点什么）。</p>
+  <p>问题是，这两种需求是冲突的。为了让检索更准，我们希望一个词把「我是什么」标记得<strong>夸张、鲜明</strong>（像一个醒目的标签）；但作为内容被取走时，我们又希望它<strong>保留原汁原味的完整信息</strong>。一个向量要同时胜任两职，只能折中。</p>
+  <p><mark>解决办法：一个词派出两个代表</mark>——<strong>Key</strong> 专门负责「我是谁，方便被找到」，<strong>Value</strong> 专门负责「我有什么，方便被取走」。而查询方也单独派一个代表 <strong>Query</strong>：「我此刻想找什么」。</p>
+  <p>于是：<strong>Q 和 K 决定「看哪里」，V 决定「拿走什么」</strong>。这就是三个向量的分工，也是名字的由来。</p>
+
+  <h4>改动 ③：用最便宜的运算来打分——点积</h4>
+  <p>Bahdanau 的 a(·,·) 是一个带 tanh 的小神经网络，每一对 (i, j) 都要单独前向一遍，很贵。既然 Q 和 K 已经是分开的向量了，那「有多般配」这件事，最自然的衡量方式就是<strong>点积</strong>——两个向量方向越一致，内积越大，而且一次矩阵乘法能同时算出所有对。</p>
+  <div class="formula">
+    e<sub>ij</sub> ≈ <span class="fq">q</span><sub>i</sub> · <span class="fk">k</span><sub>j</sub>　　
+    <span class="cm">// 从「小神经网络」换成「一次点积」：更简单，而且能并行</span>
+  </div>
+
+  <h4>改动 ④：去掉循环，直接从词向量线性映射出 Q/K/V</h4>
+  <div class="formula">
+    <span class="fq">q</span><sub>i</sub> = <span class="fk">W<sub>Q</sub></span> x<sub>i</sub>　　
+    <span class="fk">k</span><sub>j</sub> = <span class="fk">W<sub>K</sub></span> x<sub>j</sub>　　
+    <span class="fv">v</span><sub>j</sub> = <span class="fk">W<sub>V</sub></span> x<sub>j</sub>
+    <span class="cm">　// 三个可学习的投影矩阵，作用在每个词上</span>
+  </div>
+  <p>把一句话的所有词向量堆成一个矩阵 <code>X</code>，那就变成 <code>Q = X W<sub>Q</sub></code>、<code>K = X W<sub>K</sub></code>、<code>V = X W<sub>V</sub></code>——<strong>三次矩阵乘法，一次算完一整句。没有第 t 步依赖第 t−1 步这回事了。</strong>这就是并行性的来源，也是 Transformer 能长大的原因。</p>
+
+  <h4>终点 · 缩放点积注意力</h4>
+  <div class="formula" style="border-left-color:var(--acc);font-size:16px">
+    Attention( <span class="fq">Q</span> , <span class="fk">K</span> , <span class="fv">V</span> )
+     = softmax( <span class="frac"><span><span class="fq">Q</span><span class="fk">K</span><sup>T</sup></span><span>√d<sub>k</sub></span></span> ) <span class="fv">V</span>
+  </div>
+
+  <div class="grid2" style="margin-top:16px">
+    <div class="kv"><b><span class="fq">Q</span><span class="fk">K</span><sup>T</sup> — 打分</b><span>一句话里 T 个词，两两打分得到 T×T 的分数矩阵。<strong>它和 Bahdanau 那张对齐热图是同一个东西</strong>，区别只在于：那时候是一次算一格，现在是整张表一次算完。</span></div>
+    <div class="kv"><b>÷ √d<sub>k</sub> — 缩放</b><span>维度 d<sub>k</sub> 越大，点积的数值越大、方差越大，softmax 会被推到「几乎 one-hot」的饱和区，梯度趋近于 0（学不动）。除以 √d<sub>k</sub> 把方差拉回 1 附近。这是工程上的救命细节。</span></div>
+    <div class="kv"><b>softmax — 归一化</b><span>让每一行的权重非负且和为 1，得到「每个词应该看哪些词、分别看多少」。和 Bahdanau 的 α 完全同义。</span></div>
+    <div class="kv"><b>× V — 取值</b><span>用权重对 V 做加权求和。这就是 c<sub>t</sub> = Σ α<sub>tj</sub>h<sub>j</sub> 的推广，只不过是所有位置同时完成。</span></div>
+  </div>
+
+  <div class="quote">
+    <b>一句话总结这段推导：</b>Bahdanau 发明了「按相似度加权混合信息」。Transformer 做了三件事——
+    把提问方换成句子自己（自注意力）、把「被打分」和「被取走」拆成 K 和 V、把配对方式换成可并行的点积。
+    <b>Q、K、V 不是三个凭空规定的新符号，它们是把 Bahdanau 的注意力「拆开重装」之后的零件。</b>
+  </div>
+
+  <h3>4.3 亲手算一遍：一个代词怎么找到它的先行词</h3>
+  <p>看这句话：<strong>「苹果 / 掉 / 在 / 地上 / 因为 / 它 / 熟 / 了」</strong>。读到「它」的时候，这个 query 应该强烈地指向「苹果」。
+  下面这个演示里，我们故意把每个词的 q、k、v 都设成<strong>二维向量</strong>——这样它们就能被画成箭头，你能真正「看见」点积在做什么。</p>
+
+  <div class="demo" id="qkvDemo">
+    <div class="demo-head">
+      <span class="demo-title">演示 10 · Q·K → softmax → ×V</span>
+      <div class="demo-ctl">
+        <div class="slider"><span>温度</span><input type="range" id="qkvTemp" min="0.3" max="2" step="0.05" value="1"><span id="qkvTempV" class="mono">1.00×</span></div>
+        <button class="btn" id="qkvReset">重置</button>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="muted" style="font-size:12.5px;margin-bottom:8px;font-weight:700">① 点击一个词，把它当作 Query（试试点「它」）</div>
+      <div class="toks" id="qkvToks" style="justify-content:center"></div>
+
+      <div class="tr-panel" style="margin-top:20px">
+        <div class="tr-col">
+          <h5>② 在二维平面上：Query 箭头 vs 所有 Key 箭头</h5>
+          <div class="canvasbox"><canvas id="qkvPlane" width="440" height="330"></canvas></div>
+          <div class="muted" style="font-size:12.5px;margin-top:8px;text-align:center">
+            点积 = <b>|q| × (k 在 q 方向上的投影长度)</b>。箭头方向越一致，分数越高。
+          </div>
+        </div>
+        <div class="tr-col">
+          <h5>③ q·k<sub>j</sub> 分数 → softmax 权重</h5>
+          <div class="scorelist" id="qkvScores"></div>
+          <h5 style="margin-top:14px">④ 按权重混合 V 得到输出</h5>
+          <div class="canvasbox"><canvas id="qkvOut" width="440" height="200"></canvas></div>
+          <div class="readout" id="qkvMsg" style="min-height:70px"></div>
+        </div>
+      </div>
+      <div class="legend" style="justify-content:center">
+        <span class="pill w">Q · 我要找什么</span><span class="pill">K · 我是谁</span><span class="pill g">V · 我有什么</span>
+        <span style="margin-left:10px">温度调小 → 权重更尖锐（更「专心」）；调大 → 更平均（更「发散」）</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>看清楚输出的样子：</b>「它」这个位置的输出向量，会被「苹果」的 V 强烈拉过去。于是<strong>「它」在往上传递时，已经变成了「一个像苹果的东西」</strong>。
+    这就是 Transformer 里信息流动的方式：每一层都在做这件事，一个词的含义由它<strong>吸收了谁</strong>来决定。
+    也正因如此，「银行」在不同句子里会得到不同的表示——因为它注意到的东西不同。
+  </div>
+
+  <h3>4.4 多头注意力：同时用好几双眼睛看</h3>
+  <p>一个注意力只能学到一类关系。可是语言里的关系是重叠的：谁修饰谁（语法）、谁指代谁（语义）、谁紧挨着谁（位置）、谁和谁押韵（语音）……</p>
+  <p>Transformer 的做法很直接：<strong>并行跑 h 个（论文里是 8 个）独立的注意力</strong>，每个头有自己的一套 W<sub>Q</sub>/W<sub>K</sub>/W<sub>V</sub>，各自关注自己想关注的东西；最后把 8 个输出拼起来，再乘一个矩阵融合。</p>
+  <div class="formula">
+    head<sub>i</sub> = Attention( X<span class="fk">W<sub>Q</sub><sup>(i)</sup></span> , X<span class="fk">W<sub>K</sub><sup>(i)</sup></span> , X<span class="fk">W<sub>V</sub><sup>(i)</sup></span> )　；　MultiHead = Concat(head<sub>1</sub>,…,head<sub>8</sub>) <span class="fk">W<sub>O</sub></span>
+  </div>
+  <p class="muted">每个头的维度被压小到 d<sub>model</sub>/h，所以 8 个头的总计算量和 1 个全维度的头差不多——是「多视角」而不是「多花 8 倍」。</p>
+
+  <div class="demo" id="headDemo">
+    <div class="demo-head">
+      <span class="demo-title">演示 11 · 三个头，三种注意力模式</span>
+      <div class="demo-ctl">
+        <button class="btn on" data-head="0">头 1 · 指代</button>
+        <button class="btn" data-head="1">头 2 · 邻近</button>
+        <button class="btn" data-head="2">头 3 · 动宾</button>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="hmwrap"><div class="heat compact mini" id="headHeat"></div></div>
+      <div class="readout" id="headMsg"></div>
+    </div>
+  </div>
+
+  <h3>4.5 位置编码：把丢掉的东西补回来</h3>
+  <p>自注意力有一个「副作用」：它本质上是在一个<strong>集合</strong>上做加权平均。<mark>把句子里的词打乱顺序，注意力的计算结果几乎不变</mark>（这叫置换等变）。可「猫追老鼠」和「老鼠追猫」完全是两回事。</p>
+  <p>RNN 天生带顺序（一步一步走），Transformer 没有，所以必须<strong>显式地把位置信息加进词向量里</strong>：</p>
+  <div class="formula">
+    PE(pos, 2i)　 = sin( pos / 10000<sup>2i/d</sup> )<br>
+    PE(pos, 2i+1) = cos( pos / 10000<sup>2i/d</sup> )
+    <span class="cm">　// pos = 第几个词，2i/2i+1 = 向量里的第几维</span>
+  </div>
+  <p>然后把 <code>x<sub>i</sub> + PE(i)</code> 作为真正的输入。为什么用正弦余弦？因为不同频率的正弦波能唯一地编码位置，而且<strong>「往后移 k 个位置」相当于对某个频率做一次固定角度的旋转</strong>——模型因此容易学会「相对距离」。</p>
+
+  <div class="demo">
+      <div class="demo-head">
+        <span class="demo-title">图 3 · 位置编码长什么样</span>
+        <div class="demo-ctl"><span class="muted" style="font-size:12.5px">横轴 = 维度（0→63）· 纵轴 = 位置（0→95）· 颜色 = 数值（橙正 / 蓝负）</span></div>
+      </div>
+      <div class="stage">
+        <canvas id="peCanvas" width="900" height="340"></canvas>
+        <div class="readout"><b>从上往下读同一列</b>（固定一个维度、看它在不同位置上的取值）：最左边几列飞快地正负交替，
+        负责区分<b>相邻位置</b>；越往右变化越慢，负责区分<b>句子的远段</b>。
+        把一行横着读下来，就是每个位置独一无二的「指纹」。<span class="muted">（虚线框出的第 1 维是在提示你「列」该怎么读；相邻两列是一对 sin / cos。）</span></div>
+      </div>
+  </div>
+
+  <h3>4.6 忘了 RNN，可没有丢掉 Bahdanau</h3>
+  <p>Transformer 的完整结构里，解码器其实有<strong>两种</strong>注意力层，它们各自分工：</p>
+  <div class="grid2" style="margin:16px 0">
+    <div class="kv"><b>① 自注意力（Self-Attention）</b><span>Q、K、V 全来自同一句话。<br>编码器：让英文句子内部互相看。<br>解码器：让「已生成的译文」内部互相看。</span></div>
+    <div class="kv"><b>② 交叉注意力（Cross-Attention）</b><span><b>Q 来自解码器（译文），K 和 V 来自编码器（原文）。</b><br>请仔细看这一行——<strong>这就是 Bahdanau 的注意力</strong>：解码器用自己的状态去检索原文的所有位置。</span></div>
+  </div>
+  <p>角色完全一样，只是打分方式从「小神经网络」换成了「缩放点积」，并且不再依赖 RNN 逐步推进。</p>
+  <p>另外，解码器必须做一件事：<strong>掩码（Masking）</strong>。训练时为了并行，我们把整句译文一次性喂进去，但生成第 3 个词时绝不能偷看第 4 个词。做法是把分数矩阵的右上三角设成 −∞，softmax 之后权重自然变成 0。</p>
+
+  <h3>4.7 结果与影响</h3>
+  <div class="grid3">
+    <div class="kv"><b>🏆 分数更好</b><span>WMT'14 英德达到 <b>28.4 BLEU</b>（big 模型），比当时最好的结果高出 2 个点以上，而训练成本只是它的一小部分；英法也创下当时最佳。</span></div>
+    <div class="kv"><b>⚡ 快得多</b><span>训练成本大幅下降：<b>base 模型只用 8 块 P100 训练 12 小时</b>就超过了此前最好的结果（big 模型也只要 3.5 天）。</span></div>
+    <div class="kv"><b>🌱 长出了后来的一切</b><span>可并行 + 可堆叠 = 可以让模型变巨大。BERT（只用编码器）、GPT（只用解码器）都建立在同一个模块上。</span></div>
+  </div>
+  <div class="quote">
+    <b>回头看这条线很清晰：</b>RNN 把整句话压成一个向量 → 信息不够 → Bahdanau 让解码器<strong>回头扫一眼</strong>（发明注意力）→ 但 RNN 太慢 →
+    Transformer 干脆只留注意力，并把它拆成 <strong>Q（我要找什么）、K（我是谁）、V（我有什么）</strong> → 于是能并行、能堆深、能变大。
+  </div>
+</section>
+
+<!-- ================= 第 5 章 ================= -->
+<section id="ch5" class="chap reveal">
+  <div class="eyebrow">第 ⑤ 章 · 一页看懂</div>
+  <h2>Bahdanau 与 Transformer 对照表</h2>
+  <div class="tblwrap" style="margin-top:18px">
+    <table class="tbl">
+      <thead><tr><th>看什么</th><th>Seq2Seq（2014 之前）</th><th>Bahdanau 注意力（2014）</th><th>Transformer（2017）</th></tr></thead>
+      <tbody>
+        <tr><td>编码器</td><td>单向 RNN，只留最后一个状态</td><td>双向 RNN，每个位置都保留 h<sub>j</sub></td><td>多层自注意力 + 前馈网络</td></tr>
+        <tr><td>解码器每步看到的</td><td>一个固定不变的 c</td><td><b>c<sub>t</sub></b>，每步现算</td><td>每层都重算的加权结果</td></tr>
+        <tr><td>「看哪里」怎么来</td><td>—</td><td>小网络 a(s<sub>t−1</sub>, h<sub>j</sub>) 学出来</td><td>点积 q·k，一次矩阵乘法</td></tr>
+        <tr><td>查询方是谁</td><td>—</td><td>解码器状态 s<sub>t−1</sub>（单方提问）</td><td>每个词自己（互相提问）</td></tr>
+        <tr><td>打分/取值</td><td>—</td><td>同一个 h<sub>j</sub> 身兼二职</td><td><b>拆成 K 和 V 两个向量</b></td></tr>
+        <tr><td>能否并行</td><td>否</td><td>否（受 RNN 限制）</td><td><b>能，整句一次算完</b></td></tr>
+        <tr><td>长句表现</td><td>明显变差</td><td>不再随句长下降</td><td>更好，且能堆得很深</td></tr>
+        <tr><td>典型训练耗时</td><td>数天～数周</td><td>数天</td><td>数小时～数天（但模型能大得多）</td></tr>
+        <tr><td>留下的遗产</td><td>瓶颈的教训</td><td>注意力 + 软对齐 + 可解释性</td><td>可扩展的通用架构（BERT / GPT 的前身）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>如果只记三句话</h3>
+  <div class="grid3">
+    <div class="kv"><b>1 · 问题是瓶颈</b><span>把整句话压进一个固定向量，长句必然丢信息。翻译时人本来就会来回扫视，模型也该如此。</span></div>
+    <div class="kv"><b>2 · Bahdanau 的答案是「每步重算」</b><span>用「当前状态」和每个输入位置打分 → softmax 得权重 α → 加权求和得 c<sub>t</sub>。对齐不用人标，自己学得出来。</span></div>
+    <div class="kv"><b>3 · Transformer 的答案是「拆开 + 并行」</b><span>让每个词自己发问（Q）、自己挂标签（K）、自己带内容（V）；用点积代替小网络，用矩阵乘法代替时间步。这就是 Q/K/V 的来历。</span></div>
+  </div>
+
+  <div class="card" style="margin-top:26px">
+    <h3 style="margin-top:0">附录 · 符号速查表</h3>
+    <p class="muted" style="margin-top:0">读到后面忘了前面某个符号，回这里查。标 ★ 的是 Bahdanau 对齐模型自己的参数；
+    第 3 列是<b>形状</b>，用来检查每一步的维度对不对——数字不用背，<b>形状关系才是重点</b>（2n 是从哪来的、最后又怎么塌成 1 个数）。</p>
+    <div class="tblwrap">
+      <table class="tbl gloss">
+        <thead><tr><th>符号</th><th>一句话含义</th><th>形状</th><th>出现处</th></tr></thead>
+        <tbody>
+        <tr><td>x<sub>t</sub></td><td>第 t 个词的词向量（查表得到）</td><td>d 维</td><td class="muted">1.1</td></tr>
+        <tr><td>W<sub>x</sub></td><td>RNN 单元里作用在输入 x<sub>t</sub> 上的权重矩阵</td><td>d × n</td><td class="muted">1.2</td></tr>
+        <tr><td>W<sub>h</sub></td><td>RNN 单元里作用在上一时刻 h<sub>t−1</sub> 上的权重矩阵（循环权重）</td><td>n × n</td><td class="muted">1.2</td></tr>
+        <tr><td>b</td><td>RNN 单元的偏置项。<b>注意：RNN 单元有 b，对齐模型里没有</b></td><td>n 维</td><td class="muted">1.2</td></tr>
+        <tr><td>h<sub>t</sub></td><td>编码器的隐藏状态：读进去的记忆</td><td>n 维</td><td class="muted">1.2</td></tr>
+        <tr><td>y<sub>t</sub></td><td>解码器第 t 步吐出来的词</td><td>一个词</td><td class="muted">1.4</td></tr>
+        <tr><td>s<sub>t</sub></td><td>解码器的隐藏状态：写出来的记忆。<b>与 h 是两个独立 RNN、两套参数</b></td><td>n 维</td><td class="muted">1.4</td></tr>
+        <tr><td>c</td><td>旧模型的固定上下文向量，<b>就是最后一个 h<sub>T</sub></b>，从头到尾不变</td><td>n 维</td><td class="muted">1.5</td></tr>
+        <tr><td>h<sub>j</sub></td><td>双向 RNN 在原文位置 j 的注解：→h<sub>j</sub> 与 ←h<sub>j</sub> 首尾拼接，天生含左右两侧上下文</td><td>2n 维</td><td class="muted">2.2</td></tr>
+        <tr><td>e<sub>tj</sub></td><td>对齐分数（能量）：第 t 步和原文第 j 个位置有多般配。<b>未归一化</b>，可正可负</td><td>1 个数</td><td class="muted">2.3</td></tr>
+        <tr><td>a( · , · )</td><td>对齐模型本身——那个只有一层隐层的小网络。下标 a ＝ alignment</td><td>一个函数</td><td class="muted">2.3</td></tr>
+        <tr><td>W<sub>a</sub> ★</td><td>把 s<sub>t−1</sub> 从「解码空间」投影到共用的「打分空间」</td><td>n × n</td><td class="muted">2.3</td></tr>
+        <tr><td>U<sub>a</sub> ★</td><td>把 h<sub>j</sub> 从「编码空间」投影到同一个打分空间——<b>所以两边维度不同也能相加</b></td><td>n × 2n</td><td class="muted">2.3</td></tr>
+        <tr><td>u</td><td>tanh 的输出：打分空间里那 n 个数的「表现单」。<b>论文没给它单独取名</b>，这是为讲解方便起的记号</td><td>n 维</td><td class="muted">2.3</td></tr>
+        <tr><td><b>v<sub>a</sub></b> ★</td><td><b>对齐模型的输出层权重</b>：给打分空间的 n 个维度各配一个权重，把 u 加权求和（＝点积）成 1 个分数。它<b>与 t、j 都无关</b>——同一份 v<sub>a</sub> 用遍所有 (t, j)，所以它代表一套<b>通用的匹配标准</b>，而不是某一对的数据。和 W<sub>a</sub>、U<sub>a</sub> 一样，靠反向传播学出来。<b>注意它是「规则」不是「权重」</b>：每一对词具体占多少权重，是算出来的 α<sub>tj</sub></td><td>n 维</td><td class="muted">2.3</td></tr>
+        <tr><td>α<sub>tj</sub></td><td>softmax 之后的注意力权重：非负，且 Σ<sub>j</sub> α<sub>tj</sub> ＝ 1</td><td>1 个数</td><td class="muted">2.3</td></tr>
+        <tr><td>c<sub>t</sub></td><td>第 t 步<b>现算</b>的上下文向量 ＝ Σ<sub>j</sub> α<sub>tj</sub>h<sub>j</sub>。旧模型一个 c 用到底，这里每步换一个</td><td>n 维</td><td class="muted">2.3</td></tr>
+        <tr><td>Q / K / V</td><td>Transformer 的查询 / 键 / 值：同一批输入分别乘三个投影矩阵得到。<b>h<sub>j</sub> 身兼二职，在这里被拆成了 K 和 V</b></td><td>序列 × d<sub>k</sub></td><td class="muted">4.1</td></tr>
+        <tr><td>d<sub>k</sub></td><td>query/key 的维度。除以 √d<sub>k</sub> 是为了抵消「维度越大、点积越大」</td><td>一个整数</td><td class="muted">4.2</td></tr>
+        <tr><td>head<sub>i</sub></td><td>第 i 组注意力（多头）：各自算完再拼接，让模型同时看几种不同的关系</td><td>序列 × d<sub>k</sub></td><td class="muted">4.4</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note" style="margin-top:14px">
+      <b>最容易混淆的三组，单独拎出来：</b><br>
+      ① <b>h 与 s</b>：h 是编码器「读」出来的记忆，s 是解码器「写」出来的记忆，<b>两个独立 RNN、两套参数</b>，不是同一个东西；<br>
+      ② <b>c 与 c<sub>t</sub></b>：c 是旧模型那个从头到尾不变的向量（就是 h<sub>T</sub>），c<sub>t</sub> 是 Bahdanau 每写一个词都重算一次的向量——<mark>这一个下标就是分水岭</mark>；<br>
+      ③ <b>v<sub>a</sub> 与 V</b>：v<sub>a</sub> 是对齐模型里的小权重向量（n 维，管「怎么打分」）；Transformer 的 V 是值矩阵（管「取什么内容」）。
+      <b>字母像，职责完全不同</b>，别被绕进去。
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:26px">
+    <h3 style="margin-top:0">自己动手验证（可选）</h3>
+    <p class="muted" style="margin-bottom:6px">想更进一步，可以读原文。两篇论文都极易读，且都配有那张经典的对齐热图：</p>
+    <div class="refs">
+      · Bahdanau, Cho &amp; Bengio. <b>Neural Machine Translation by Jointly Learning to Align and Translate</b>. arXiv:1409.0473<br>
+      · Sutskever, Vinyals &amp; Le. <b>Sequence to Sequence Learning with Neural Networks</b>. arXiv:1409.3215<br>
+      · Cho et al. <b>Learning Phrase Representations using RNN Encoder–Decoder</b>. arXiv:1406.1078<br>
+      · Vaswani et al. <b>Attention Is All You Need</b>. arXiv:1706.03762
+    </div>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    <b>从 Bahdanau 到 Transformer</b>
+    <p style="color:#a7aecb;margin-top:8px;max-width:720px">
+      所有演示都用真实的注意力机制数学（点积、softmax、加权求和）在浏览器里现场计算，数值经过教学设计，用于说明原理；论文引用与结论均来自原文。
+    </p>
+    <div class="refs">页面为单文件 HTML，可离线打开 · 无外部依赖</div>
+  </div>
+</footer>
+
+<script>
+(function(){
+"use strict";
+/* ============================================================
+   工具
+   ============================================================ */
+var $=function(s,r){return (r||document).querySelector(s)};
+var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function softmax(arr,T){
+  T=T||1;var m=Math.max.apply(null,arr);
+  var e=arr.map(function(v){return Math.exp((v-m)/T)});
+  var s=e.reduce(function(a,b){return a+b},0);
+  return e.map(function(v){return v/s});
+}
+function mkTok(t,cls){var d=document.createElement('div');d.className='tok'+(cls?' '+cls:'');d.textContent=t;return d}
+var SUB=['₀','₁','₂','₃','₄','₅','₆'];
+
+/* 画布自适应（含 devicePixelRatio） */
+function fitCanvas(cv){
+  var dpr=Math.min(window.devicePixelRatio||1,2);
+  var aw=+cv.getAttribute('width'), ah=+cv.getAttribute('height');
+  var box=cv.parentElement.getBoundingClientRect();
+  var w=Math.min(aw, Math.max(260, Math.floor(box.width)-2));
+  var h=ah*(w/aw);
+  cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
+  cv.style.width=w+'px'; cv.style.height=h+'px';
+  var g=cv.getContext('2d');
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.__w=w; g.__h=h;
+  return g;
+}
+var renderers=[],rzT=null;
+function onResize(fn){renderers.push(fn)}
+window.addEventListener('resize',function(){clearTimeout(rzT);rzT=setTimeout(function(){renderers.forEach(function(f){f()})},160)});
+
+/* tooltip */
+var tipEl=$('#tip');
+function showTip(html,x,y){
+  tipEl.innerHTML=html; tipEl.style.opacity='1';
+  var r=tipEl.getBoundingClientRect();
+  tipEl.style.left=clamp(x-r.width/2,8,window.innerWidth-r.width-8)+'px';
+  tipEl.style.top=(y-r.height-10)+'px';
+}
+function hideTip(){tipEl.style.opacity='0'}
+
+/* 阅读进度 & 入场动画 */
+(function(){
+  var p=$('#progress');
+  window.addEventListener('scroll',function(){
+    var d=document.documentElement, t=d.scrollTop/(d.scrollHeight-d.clientHeight||1);
+    p.style.width=(t*100)+'%';
+  },{passive:true});
+  var io=new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){e.target.classList.add('in'); io.unobserve(e.target);} });
+  },{threshold:.06});
+  $$('.reveal').forEach(function(el){io.observe(el)});
+})();
+
+/* ============================================================
+   Hero 动画：注意力弧线
+   ============================================================ */
+(function(){
+  var cv=$('#heroCanvas'); if(!cv) return;
+  var g,w,h,arcs=[],N=12,t0=performance.now();
+  var COLORS=['rgba(139,140,255,','rgba(192,132,252,','rgba(251,191,36,','rgba(96,165,250,'];
+  function build(){
+    var dpr=Math.min(window.devicePixelRatio||1,2);
+    w=cv.clientWidth||window.innerWidth; h=cv.clientHeight||520;
+    cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
+    g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
+    arcs=[];
+    for(var i=0;i<18;i++){
+      arcs.push({a:Math.floor(Math.random()*N),b:Math.floor(Math.random()*N),
+        ph:Math.random()*6.28, sp:.35+Math.random()*.9, c:COLORS[i%COLORS.length],
+        wdt:.8+Math.random()*1.6});
+    }
+  }
+  build(); onResize(build);
+  function pos(i,row,dy){
+    var pad=w*.07;
+    return {x:pad+(w-2*pad)*(i/(N-1)), y:h*(row)+dy};
+  }
+  function loop(now){
+    var t=(now-t0)/1000;
+    g.clearRect(0,0,w,h);
+    var top=h*.24, bot=h*.80;
+    /* 节点 */
+    for(var i=0;i<N;i++){
+      [[top,'rgba(255,255,255,.30)'],[bot,'rgba(165,180,252,.38)']].forEach(function(rr){
+        var p=pos(i,rr[0]/h,0);
+        g.beginPath(); g.arc(p.x,p.y,2.6,0,6.283);
+        g.fillStyle=rr[1]; g.fill();
+      });
+    }
+    /* 弧线 */
+    arcs.forEach(function(A){
+      var p1=pos(A.a,top/h,0), p2=pos(A.b,bot/h,0);
+      var cx=(p1.x+p2.x)/2, cy=(p1.y+p2.y)/2+(p2.y-p1.y)*0.55;
+      var glow=0.5+0.5*Math.sin(t*A.sp*2+A.ph);
+      g.beginPath(); g.moveTo(p1.x,p1.y); g.quadraticCurveTo(cx,cy,p2.x,p2.y);
+      g.strokeStyle=A.c+(0.05+0.20*glow)+')'; g.lineWidth=A.wdt; g.stroke();
+      /* 沿曲线跑动的光点 */
+      var u=(t*0.22*A.sp+A.ph)%1;
+      var x=(1-u)*(1-u)*p1.x+2*(1-u)*u*cx+u*u*p2.x;
+      var y=(1-u)*(1-u)*p1.y+2*(1-u)*u*cy+u*u*p2.y;
+      var rr=2.1+2.4*glow;
+      var grd=g.createRadialGradient(x,y,0,x,y,rr*3.4);
+      grd.addColorStop(0,A.c+(0.55*glow+0.2)+')'); grd.addColorStop(1,A.c+'0)');
+      g.beginPath(); g.arc(x,y,rr*3.4,0,6.283); g.fillStyle=grd; g.fill();
+      g.beginPath(); g.arc(x,y,rr,0,6.283); g.fillStyle='#fff'; g.globalAlpha=.75*glow; g.fill(); g.globalAlpha=1;
+    });
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* ============================================================
+   演示 1 · 手算一个 2 维 RNN 单元（h_t / W_x / W_h / b 的定义）
+   ============================================================ */
+(function(){
+  var eq=$('#calcEq'), msg=$('#calcMsg'), xEl=$('#calcX'), hpEl=$('#calcHprev'), hEl=$('#calcH');
+  if(!eq) return;
+  var WX=[[1.00,0.50],[-0.50,1.00]],
+      WH=[[0.80,0.00],[0.20,0.90]],
+      B =[0.10,-0.10],
+      XS=[[1,0],[0,1],[1,1]],
+      LAB=['词① 「猫」','词② 「追」','词③ 「老鼠」'];
+  var step=0, h=[0,0];
+  function f2(v){ return (v<0?'−':'')+Math.abs(v).toFixed(2) }
+  function f3(v){ return (v<0?'−':'')+Math.abs(v).toFixed(3) }
+  function op(v){ return v<0 ? '('+f3(v)+')' : f3(v) }
+  function fill(){
+    [['#matWx',WX],['#matWh',WH],['#matB',[B]]].forEach(function(pair){
+      var host=$(pair[0]); host.innerHTML='';
+      var rows=pair[1];
+      host.style.gridTemplateColumns='repeat('+rows[0].length+',auto)';
+      rows.forEach(function(row){ row.forEach(function(v){
+        var i=document.createElement('i'); i.textContent=f2(v); host.appendChild(i);
+      })});
+    });
+  }
+  function reset(){
+    step=0; h=[0,0];
+    xEl.textContent='—'; hpEl.textContent='—'; hEl.textContent='—';
+    eq.innerHTML='<span class="ghost">点「下一步」开始逐行计算。</span>';
+    msg.innerHTML='为了让你能<b>手算</b>，这里把维度缩到 2；真实模型是 512 维，但算法一模一样。';
+  }
+  function stepFn(){
+    if(step>=XS.length){
+      reset();
+      msg.innerHTML='回到起点。再走一遍时请留意：<b>W<sub>x</sub>、W<sub>h</sub>、b 从头到尾一个数都没变。</b>';
+      return;
+    }
+    var i=step, x=XS[i], prev=h.slice(), z=[], lines=[];
+    for(var r=0;r<2;r++){
+      var t1=WX[r][0]*x[0], t2=WX[r][1]*x[1], t3=WH[r][0]*prev[0], t4=WH[r][1]*prev[1];
+      var sum=t1+t2+t3+t4+B[r];
+      z.push(sum);
+      lines.push('<b>h</b><sub>'+SUB[i+1]+'</sub>['+(r+1)+'] = tanh( '+
+        '<span class="wx">'+f2(WX[r][0])+'×'+op(x[0])+'</span> + '+
+        '<span class="wx">'+f2(WX[r][1])+'×'+op(x[1])+'</span> + '+
+        '<span class="wh">'+f2(WH[r][0])+'×'+op(prev[0])+'</span> + '+
+        '<span class="wh">'+f2(WH[r][1])+'×'+op(prev[1])+'</span> + '+
+        '<span class="wb">'+f2(B[r])+'</span> ) = tanh( '+f3(sum)+' ) = <span class="res">'+f3(Math.tanh(sum))+'</span>');
+    }
+    var nh=[Math.tanh(z[0]),Math.tanh(z[1])];
+    xEl.textContent='('+f3(x[0])+', '+f3(x[1])+')';
+    hpEl.textContent='('+f3(prev[0])+', '+f3(prev[1])+')';
+    hEl.textContent='('+f3(nh[0])+', '+f3(nh[1])+')';
+    eq.innerHTML=lines.join('<br>');
+    h=nh; step++;
+    if(step===1){
+      msg.innerHTML='读入<b>'+LAB[0]+'</b>。此刻 h₀ = (0.000, 0.000)，所以所有<span class="wh" style="color:#0f766e;font-weight:700">绿色项</span>都是 0——'+
+        '第一份记忆完全来自输入。<br><span class="muted">黄色项 = W<sub>x</sub>x<sub>t</sub>（新词带来的），绿色项 = W<sub>h</sub>h<sub>t−1</sub>（旧记忆），紫色 = b（偏置）。</span>';
+    }else if(step===2){
+      msg.innerHTML='读入<b>'+LAB[1]+'</b>。这次 W<sub>h</sub>h₁ 不再是 0：<b>旧记忆开始起作用了</b>。'+
+        '而上面那三个矩阵——<b>一个数都没变</b>。这就是「循环」两个字的含义。';
+    }else{
+      msg.innerHTML='读完了。h₃ 就是 h<sub>T</sub>，它是一个 2 维向量，和 h₀、h₁ 的<b>形状完全一样</b>。'+
+        '真实模型里它是 512 维：不管句子有 3 个词还是 50 个词，宽度都不变。<br>'+
+        '<span class="muted">「容量固定」就是这个意思——能记住多少，在模型搭好的那一刻就已经定死了。</span>';
+    }
+  }
+  $('#calcStep').addEventListener('click',stepFn);
+  $('#calcReset').addEventListener('click',reset);
+  fill(); reset();
+})();
+
+/* ============================================================
+   演示 2 · 把循环展开（一个 RNN，反复用同一套参数）
+   ============================================================ */
+(function(){
+  var chain=$('#rnnChain'), msg=$('#rnnMsg'), vec=$('#rnnVec'), lab=$('#vecLabel');
+  if(!chain) return;
+  var W=['The','cat','sat','on','the','mat'], D=12, s=0, auto=null;
+  var cols=[];
+  W.forEach(function(w,i){
+    var c=document.createElement('div'); c.className='rnn-col';
+    c.innerHTML='<div class="x">'+w+'</div><div class="ar">↓</div>'+
+      '<div class="glyph">▣</div><div class="tag">同一个单元</div>'+
+      '<div class="ar">↓</div><div class="h">h'+SUB[i+1]+'</div>';
+    chain.appendChild(c); cols.push(c);
+  });
+  for(var k=0;k<D;k++) vec.appendChild(document.createElement('i'));
+  var cells=$$('i',vec);
+  function hv(t,k){ return Math.sin(t*1.35+k*0.82)*Math.cos(t*0.47+k*0.41) }
+  function paint(vals){
+    cells.forEach(function(c,kk){
+      var v=vals[kk], a=clamp(Math.abs(v),0,1);
+      c.style.background = Math.abs(v)<0.02 ? '#e9ebf5'
+        : (v>0 ? 'rgba(79,70,229,'+(0.12+0.88*a).toFixed(2)+')'
+               : 'rgba(225,29,72,'+(0.12+0.88*a).toFixed(2)+')');
+    });
+  }
+  function render(){
+    cols.forEach(function(c,i){ c.classList.toggle('on', i===s-1) });
+    if(s===0){
+      vec.classList.add('zero'); paint(new Array(D).fill(0));
+      lab.textContent='h₀（还没开始读）= 全 0 向量';
+      msg.innerHTML='还没开始读。句子还没进来，没有任何记忆，所以约定 <b>h₀ 是一个全 0 向量</b>。';
+    }else{
+      vec.classList.remove('zero');
+      var o=[]; for(var kk=0;kk<D;kk++) o.push(hv(s,kk));
+      paint(o);
+      lab.textContent='此刻的记忆 h'+SUB[s]+'（示意 12 维，真实模型是 512 维）';
+    }
+  }
+  function step(){
+    if(s>=W.length){ s=0; render();
+      msg.innerHTML='回到起点。再走一遍时请留意：<b>每一步用的都是同一个单元，参数一次都没换过。</b>'; return; }
+    s++; render();
+    var w=W[s-1];
+    if(s===1){
+      msg.innerHTML='读入第 1 个词「<b>'+w+'</b>」：把「新词」和「上一步的记忆 h₀（全 0）」揉一下，得到 <b>h₁</b>。'+
+        '<br>注意下面那排格子——它<b>永远只有 12 个数</b>。不管句子多长，记忆的宽度都不变。';
+    }else if(s<W.length){
+      msg.innerHTML='读入第 '+s+' 个词「<b>'+w+'</b>」：<b>同一个单元、同一套 W<sub>x</sub>/W<sub>h</sub>/b 再盖一次章</b>，'+
+        '把「'+w+'」和「上一步的记忆 h'+SUB[s-1]+'」揉成新的 <b>h'+SUB[s]+'</b>。'+
+        '<br><span class="muted">W<sub>x</sub> 和 W<sub>h</sub> 从头到尾没换过——变的只有输入。</span>';
+    }else{
+      msg.innerHTML='读完了。最后这个 <b>h'+SUB[W.length]+' 就是 h<sub>T</sub></b>，也就是整句的摘要——它会交给解码器，'+
+        '并且<b>改名叫 c</b>。<br>而 h₁ … h'+SUB[W.length-1]+' 到此为止，<b>全部丢掉</b>。'+
+        '<span class="muted">（下一个演示会让你看清这件事。）</span>';
+    }
+  }
+  $('#rnnStep').addEventListener('click',step);
+  $('#rnnReset').addEventListener('click',function(){
+    if(auto){clearInterval(auto);auto=null;$('#rnnAuto').textContent='自动播放';$('#rnnAuto').classList.remove('primary')}
+    s=0; render();
+    msg.innerHTML='点「下一步」，看同一个单元是怎么被反复使用的。';
+  });
+  $('#rnnAuto').addEventListener('click',function(){
+    var self=this;
+    if(auto){clearInterval(auto);auto=null;self.textContent='自动播放';self.classList.remove('primary');}
+    else{
+      self.textContent='暂停';self.classList.add('primary');
+      if(s>=W.length){s=0;render()}
+      auto=setInterval(function(){
+        if(s>=W.length){clearInterval(auto);auto=null;self.textContent='自动播放';self.classList.remove('primary');return}
+        step();
+      },1450);
+    }
+  });
+  render();
+})();
+
+/* ============================================================
+   演示 3 · 编码器-解码器全景图（h / s / c 到底是什么）
+   ============================================================ */
+(function(){
+  var svg=$('#edSvg'), msg=$('#edMsg'); if(!svg) return;
+  var NS='http://www.w3.org/2000/svg';
+  function el(tag,at,parent){
+    var n=document.createElementNS(NS,tag);
+    for(var k in at) n.setAttribute(k,at[k]);
+    (parent||svg).appendChild(n); return n;
+  }
+  function txt(x,y,str,cls,anchor){
+    var t=el('text',{x:x,y:y,class:cls||'tx'});
+    if(anchor) t.setAttribute('text-anchor',anchor);
+    t.textContent=str; return t;
+  }
+  function ln(d,cls){ el('path',{d:d,class:'ln '+(cls||'')}) }
+  function box(x,y,w,h,label,cls,onclick){
+    var g=el('g',{class:'grp'});
+    el('rect',{x:x,y:y,width:w,height:h,rx:9,class:'bx '+(cls||'')},g);
+    txt(x+w/2,y+h/2,label,(cls==='hot'||cls==='cc')?'tx w':'tx',null,g);
+    if(onclick) g.addEventListener('click',onclick);
+  }
+  /* 箭头标记 */
+  var defs=el('defs',{});
+  [['#c7cbe4','eddArrow'],['#f59e0b','eddArrowHot']].forEach(function(m){
+    var mk=el('marker',{id:m[1],viewBox:'0 0 10 10',refX:'9',refY:'5',markerWidth:'7',markerHeight:'7',orient:'auto'},defs);
+    el('path',{d:'M0,0 L10,5 L0,10 z',fill:m[0]},mk);
+  });
+
+  var EW=['The','agreement','on','the'], EX=[100,210,320,430], BW=86, BH=34;
+  var WY=30, HY=104, CY=176, SY=252, OY=318;
+  var hCx=EX[3]+BW/2, last=EW.length-1;
+
+  txt(EX[0],14,'编码器 Encoder · 一个 RNN','lb b','start');
+  txt(EX[0],160,'↑ 这 4 个方框是同一个单元，参数一模一样','lb','start');
+
+  EW.forEach(function(w,i){
+    var cx=EX[i]+BW/2;
+    ln('M'+cx+','+(WY+BH)+' L'+cx+','+HY);
+    box(EX[i],WY,BW,BH,w,'',function(){
+      msg.innerHTML='输入词「<b>'+w+'</b>」先被查表变成 512 维向量 x'+SUB[i+1]+'，再送进编码器。';
+    });
+    box(EX[i],HY,BW,BH,'h'+SUB[i+1], i===last?'hot':'', function(){
+      msg.innerHTML = (i===last)
+        ? '这是<b>最后一个</b>编码器状态 h₄，也就是 h<sub>T</sub>。它是唯一被带走的记忆——所以它同时就是 <b>c</b>（橙色框 = 两个名字，同一个向量）。'
+        : '这是编码器读到第 '+(i+1)+' 个词时的中间记忆 h'+SUB[i+1]+'。它<b>被算出来过，然后就被丢掉了</b>——旧模型只带走最后一个 h<sub>T</sub>。';
+    });
+  });
+  for(var i=0;i<last;i++) ln('M'+(EX[i]+BW)+','+(HY+BH/2)+' L'+EX[i+1]+','+(HY+BH/2),'recur');
+
+  ln('M'+hCx+','+(HY+BH)+' L'+hCx+','+CY,'hot');
+  box(hCx-60,CY,120,40,'c = h₄','cc',function(){
+    msg.innerHTML='这就是 <b>c</b>（context vector）。它<b>就是 h₄</b>，不是另外算出来的东西。解码器写每一个词时看到的都是它，<b>一个数都不变</b>。';
+  });
+  txt(hCx+70,CY+20,'← 同一个向量，换了个名字','lb','start');
+
+  var SX=[320,470,620];
+  SX.forEach(function(cx,k){
+    ln('M'+hCx+','+(CY+40)+' Q'+hCx+','+SY+' '+cx+','+SY,'hot');
+    ln('M'+cx+','+(SY+BH)+' L'+cx+','+OY);
+    box(cx-BW/2,SY,BW,BH,'s'+SUB[k+1],'dd',function(){
+      msg.innerHTML='解码器自己的隐藏状态 s'+SUB[k+1]+'。它和编码器的 h 不是一回事——<b>两个独立的 RNN、两套不同的参数</b>：h 是「读」出来的记忆，s 是「写」出来的记忆。';
+    });
+    box(cx-BW/2,OY,BW,BH,'y'+SUB[k+1],'',function(){
+      msg.innerHTML='解码器生成的第 '+(k+1)+' 个词 y'+SUB[k+1]+'。<b>重排语序这件事，旧模型只能靠这个 RNN 硬扛</b>——c 里并没有「哪个词该排第几」的位置信息。';
+    });
+  });
+  ln('M'+(SX[0]+BW/2)+','+(SY+BH/2)+' L'+(SX[1]-BW/2)+','+(SY+BH/2),'recur');
+  ln('M'+(SX[1]+BW/2)+','+(SY+BH/2)+' L'+(SX[2]-BW/2)+','+(SY+BH/2),'recur');
+  txt(663,14,'解码器 Decoder · 另一个 RNN','lb b','end');
+  txt(663,32,'参数与编码器不共享 ← 两个独立 RNN','lb','end');
+  txt(380,374,'三条橙色线用的是同一个 c —— 解码每一步都看它，它却从不改变','lb');
+})();
+
+/* ============================================================
+   演示 6 · 对齐模型 a(·,·) 的内部结构
+   ============================================================ */
+(function(){
+  var svg=$('#alignSvg'), msg=$('#alignNetMsg'); if(!svg) return;
+  var NS='http://www.w3.org/2000/svg';
+  function el(tag,at,parent){
+    var n=document.createElementNS(NS,tag);
+    for(var k in at) n.setAttribute(k,at[k]);
+    (parent||svg).appendChild(n); return n;
+  }
+  function txt(x,y,str,cls,parent,anchor){
+    var t=el('text',{x:x,y:y,class:cls||'tx'},parent);
+    if(anchor) t.setAttribute('text-anchor',anchor);
+    t.textContent=str; return t;
+  }
+  function lab(x,y,main,sub,tail,cls,parent){
+    var t=el('text',{x:x,y:y,class:cls||'tx'},parent);
+    var a=el('tspan',{},t); a.textContent=main;
+    if(sub){ var b=el('tspan',{dy:'3.5','font-size':'0.72em'},t); b.textContent=sub; }
+    if(tail){ var c=el('tspan',{dy:sub?'-3.5':'0'},t); c.textContent=tail; }
+    return t;
+  }
+  function ln(d,cls){ el('path',{d:d,class:'ln2'+(cls?' '+cls:'')}) }
+  function node(x,y,w,h,main,sub,tail,dim,cls,tip){
+    var g=el('g',{class:'grp'});
+    el('rect',{x:x,y:y,width:w,height:h,rx:10,class:'bx '+(cls||'')},g);
+    var white=(cls==='o');
+    lab(x+w/2,y+h/2-6,main,sub,tail,white?'tx w':'tx',g);
+    if(dim) txt(x+w/2,y+h/2+10,dim,white?'sub w':'sub',g);
+    if(tip) g.addEventListener('click',function(){ msg.innerHTML=tip; });
+    return g;
+  }
+
+  /* 箭头标记（本图专用，避免和其他 SVG 的 id 撞车） */
+  var defs=el('defs',{});
+  var mk=el('marker',{id:'eddArrow2',viewBox:'0 0 10 10',refX:'9',refY:'5',markerWidth:'7',markerHeight:'7',orient:'auto'},defs);
+  el('path',{d:'M0,0 L10,5 L0,10 z',fill:'#c7cbe4'},mk);
+
+  var TW=46, yA=50, yB=200, yC=124;
+  var cA=yA+TW/2, cB=yB+TW/2, cC=yC+TW/2;
+  var X1=22,W1=112, X2=178,W2=128, X3=350,W3=104, X4=498,W4=96, X5=638,W5=104, X6=790,W6=92;
+  var MX=332;
+
+  /* ---------- 两个输入 ---------- */
+  node(X1,yA,W1,TW,'s','t−1','','n 维','s',
+    '解码器<b>上一步</b>的状态 <b>s<sub>t−1</sub></b>（橙色，n 维）：它代表「我此刻想表达什么」。'+
+    '注意角标是 <b>t−1</b> 而不是 t —— 要生成第 t 个词时，s<sub>t</sub> 还没算出来，手里只有上一步的 s。');
+  node(X1,yB,W1,TW,'h','j','','2n 维','h',
+    '原文<b>第 j 个位置</b>的注解 <b>h<sub>j</sub></b>（绿色，<b>2n 维</b>）：双向 RNN 把 →h<sub>j</sub> 和 ←h<sub>j</sub> '+
+    '<b>首尾拼接</b>的结果，所以它天生就带着「这个位置左边有什么」和「右边有什么」。');
+  txt(X1,38,'解码器侧（橙色）· 我此刻想表达什么','ltx',null,'start');
+  txt(X1,268,'编码器侧（绿色）· 原文每个位置是什么','ltx',null,'start');
+
+  /* ---------- 两条线性投影 ---------- */
+  node(X2,yA,W2,TW,'W','a',' s','n 维','m',
+    '<b>W<sub>a</sub></b> 是 n×n 矩阵，把 s 从「解码空间」<b>线性搬到</b>一个共用的 n 维「打分空间」。它是要学的参数。');
+  node(X2,yB,W2,TW,'U','a',' h','n 维','m',
+    '<b>U<sub>a</sub></b> 是 n×2n 矩阵，把 2n 维的 h 搬到<b>同一个</b> n 维打分空间。'+
+    '正因为先投影、再相加，所以 s 和 h <b>维度不一样也没关系</b>。');
+  txt(X2+W2/2,112,'① 各自投影到 n 维','ltx',null,'middle');
+
+  /* ---------- 相加 / tanh / 汇总 / 输出 ---------- */
+  node(X3,yC,W3,TW,'＋','','','n 维','m',
+    '<b>逐元素相加</b>：第 1 维加第 1 维、第 2 维加第 2 维……得到 n 个数。'+
+    '式子里<b>没有偏置项 b</b>，原文就是这么写的。');
+  txt(X3+W3/2,112,'② 相加','ltx',null,'middle');
+
+  node(X4,yC,W4,TW,'tanh','','','n 维','m',
+    '<b>tanh</b> 逐个数作用，把数值压到 (−1, 1)。它负责整个网络的<b>非线性</b>：'+
+    '一旦拿掉它，v<sub>a</sub><sup>T</sup>(W<sub>a</sub>s + U<sub>a</sub>h) 就会合并成一次纯线性变换。');
+  txt(X4+W4/2,112,'③ 过 tanh','ltx',null,'middle');
+
+  node(X5,yC,W5,TW,'vᵀ','a',' ·','点积','m',
+    '<b>v<sub>a</sub></b> 是 n 维向量，转置成行向量后与左边 n 维的结果做<b>点积</b>，输出 1 个实数。'+
+    '这是全链路<b>唯一一次维度塌缩</b>；v<sub>a</sub> 里的 n 个数同样是学出来的。');
+  txt(X5+W5/2,112,'④ 汇总','ltx',null,'middle');
+
+  node(X6,yC,W6,TW,'e','tj','','1 个数','o',
+    '这就是最终的对齐分数 <b>e<sub>tj</sub></b>：一个<b>尚未归一化</b>的实数，可正可负。'+
+    '它接下来会被丢进 softmax（第 ② 步）变成权重 α<sub>tj</sub>。整句翻译要算 <b>T′×T</b> 次这个小网络——这也正是它慢的原因。');
+  txt(X6+W6/2,112,'⑤ 输出一个数','ltx',null,'middle');
+
+  /* ---------- 连线 ---------- */
+  ln('M'+(X1+W1)+','+cA+' H'+(X2-8));
+  ln('M'+(X1+W1)+','+cB+' H'+(X2-8));
+  ln('M'+(X2+W2)+','+cA+' H'+MX+' V'+cC,'nb');
+  ln('M'+(X2+W2)+','+cB+' H'+MX+' V'+cC,'nb');
+  ln('M'+MX+','+cC+' H'+(X3-8));
+  ln('M'+(X3+W3)+','+cC+' H'+(X4-8));
+  ln('M'+(X4+W4)+','+cC+' H'+(X5-8));
+  ln('M'+(X5+W5)+','+cC+' H'+(X6-8));
+
+  txt(450,292,'两条支路先各自投影到同一个 n 维「打分空间」，再相加、过 tanh、最后由 vₐ 汇总成一个数','ltx',null,'middle');
+})();
+
+/* ============================================================
+   演示 7 · v_a 就是一套打分权重
+   ============================================================ */
+(function(){
+  var DEMO=$('#vaDemo'); if(!DEMO) return;
+  var TOK={'苹果':[+0.9,+0.5,+0.3],'掉':[+0.1,-0.4,+0.6],'地上':[+0.2,+0.1,+0.5],'熟':[-0.7,+0.4,+0.2]};
+  var cur='苹果', U=TOK[cur];
+  var sl=[0,1,2].map(function(i){ return $('#vaS'+i); });
+  var msg=$('#vaMsg');
+  var presets={even:[1,1,1],dim0:[1,0,0],neg:[-1,-1,-1],zero:[0,0,0]};
+  var tips={
+    even:'三个维度的权重都是 1：e 就是把 u 的三个数<b>直接相加</b>。这叫「均匀权重」。注意它同时是<b>求和</b>而不是<b>平均</b>——维度越多，e 越容易跑到很大，这也是后面 Transformer 要除以 √d<sub>k</sub> 的伏笔。',
+    dim0:'只给第 1 维权重，另外两维被<b>彻底无视</b>。模型如果学成这样，就等于说「我只看第一项考察点」。注意力权重的全部内容，就是这个「谁占多少分」。',
+    neg:'整体取反：e 全部变号，分数的<b>大小排序整个颠倒</b>——本来最该看的词变成最不该看的。形状没变、参数没少，只是「标准的正负号」反了。所以必须让模型自己学。',
+    zero:'权重全是 0 → 不管原文是什么，e 恒等于 0。所有位置分数一样，softmax 退化成<b>均匀分布</b>，注意力彻底失效。这就是「v<sub>a</sub> 必须真的学到东西」的直观证明。'
+  };
+  function sgn(x,d){ return (x<0?'−':'+')+Math.abs(x).toFixed(d); }
+  function tokensLine(){
+    var out=[]; for(var k in TOK){ if(TOK.hasOwnProperty(k)) out.push(k+' '+sgn(score(TOK[k]),2)); }
+    return out.join('　');
+  }
+  function score(uArr){
+    var e=0; for(var i=0;i<uArr.length;i++) e+=parseFloat(sl[i].value)*uArr[i]; return e;
+  }
+  function render(key){
+    var parts=[],e=0;
+    for(var i=0;i<U.length;i++){
+      var u=U[i], v=parseFloat(sl[i].value), prod=v*u;
+      $('#vaU'+i).textContent=sgn(u,1);
+      $('#vaL'+i).textContent=sgn(v,1);
+      $('#vaP'+i).textContent=sgn(prod,2);
+      parts.push(sgn(prod,2)); e+=prod;
+    }
+    $('#vaE').textContent=sgn(e,2);
+    if(key&&key.indexOf('tok:')===0){
+      msg.innerHTML='你把 h<sub>j</sub> 换成了「<b>'+cur+'</b>」——<b>v<sub>a</sub> 那三个数一个都没动</b>，可 u 变了，e 也就跟着变了：e<sub>tj</sub> ＝ '+parts.join(' ')+' ＝ <b>'+e.toFixed(2)+'</b>。'
+        +'<br>同一套 v<sub>a</sub>，量一量原文里的每个词，得到的分数是：'+tokensLine()+'。<b>固定的尺子，量出来的长度各不相同</b>——「不同词的权重不同」这件事，就是从这里来的。';
+      return;
+    }
+    if(key&&tips[key]){ msg.innerHTML=tips[key]; return; }
+    msg.innerHTML = cur==='苹果' && !key
+      ? 'e<sub>tj</sub> ＝ '+parts.join(' ')+' ＝ <b>'+e.toFixed(2)+'</b>。换一组 v<sub>a</sub> 就换一个分数：<b>这 n 个数不是人定的，是模型自己学出来的</b>——训练时它只被告知「翻译要更准」，v<sub>a</sub> 就被这个目标一点一点逼成该有的样子。'
+      : 'e<sub>tj</sub> ＝ '+parts.join(' ')+' ＝ <b>'+e.toFixed(2)+'</b>。注意 v<sub>a</sub> 没变，只是 h<sub>j</sub> 换成了「'+cur+'」。';
+  }
+  sl.forEach(function(el){ el.addEventListener('input',function(){ render(null); }); });
+  Array.prototype.forEach.call(DEMO.querySelectorAll('[data-vau]'),function(b){
+    b.addEventListener('click',function(){
+      cur=b.getAttribute('data-vau'); U=TOK[cur];
+      render('tok:'+cur);
+    });
+  });
+  Array.prototype.forEach.call(DEMO.querySelectorAll('[data-vap]'),function(b){
+    b.addEventListener('click',function(){
+      var k=b.getAttribute('data-vap');
+      presets[k].forEach(function(val,i){ sl[i].value=val; });
+      render(k);
+    });
+  });
+  render(null);
+})();
+
+/* ============================================================
+   演示 4 · 编码器背包（信息瓶颈）
+   ============================================================ */
+(function(){
+  var srcBox=$('#bnSrc'), bag=$('#bnBag'), capEl=$('#bnCap'), outBox=$('#bnOut'), msg=$('#bnMsg');
+  if(!bag) return;
+  var DATA={
+    short:{ en:['The','cat','sat','on','the','mat','.'],
+            out:[['猫',''],['坐',''],['在',''],['垫子',''],['上',''],['。','']],
+            ok:true },
+    long:{  en:['The','agreement','on','the','European','Economic','Area','was','signed','in','August','1990','.'],
+            out:[['协议','garbled'],['关于','garbled'],['欧洲',''],['经济',''],['区',''],['被',''],['签署',''],['八月','1990',''],['。','']],
+            ok:false }
+  };
+  var mode='long', timers=[], running=false;
+  var BLOCK=12, GAP=3.5;
+
+  function clearTimers(){timers.forEach(clearTimeout);timers=[]}
+  function reset(){
+    clearTimers(); running=false;
+    srcBox.innerHTML=''; outBox.innerHTML='';
+    bag.innerHTML='<div class="cap">固定 512 维</div>';
+    capEl.textContent='已用 0%'; capEl.style.color='';
+    msg.innerHTML='点「播放」看看这句话被压进固定大小的向量时会发生什么。';
+  }
+  function renderSource(){
+    srcBox.innerHTML='';
+    DATA[mode].en.forEach(function(t,i){
+      var el=mkTok(t); el.dataset.i=i;
+      var c=document.createElement('span'); c.className='cost'; c.textContent='1';
+      el.appendChild(c); srcBox.appendChild(el);
+    });
+  }
+  function play(){
+    reset(); renderSource(); running=true;
+    var d=DATA[mode].en, cap=bag.clientHeight-22;
+    var fits=Math.floor(cap/(BLOCK+GAP));
+    var blocks=[];
+    /* 新的词插在最上面，越早读到的词被挤到越下面 */
+    d.forEach(function(){ var b=document.createElement('i'); bag.insertBefore(b,bag.firstChild); blocks.push(b); });
+    var used=0, i=0;
+    var tick=function(){
+      if(i>=d.length){ finish(used,cap,fits); return; }
+      blocks[i].style.height=BLOCK+'px';
+      used+=BLOCK+GAP;
+      var squeeze=Math.max(0,(i+1)-fits);
+      for(var k=0;k<=i;k++){
+        var out=(k<squeeze);
+        blocks[k].classList.toggle('over',out);
+        blocks[k].style.opacity=out?'0.34':'1';
+        if(out) srcBox.children[k].classList.add('wrong');
+      }
+      srcBox.children[i].classList.add('act');
+      if(i>0) srcBox.children[i-1].classList.remove('act');
+      var pct=Math.round(used/cap*100);
+      capEl.textContent='已用 '+pct+'%'+(pct>100?' ⚠️ 溢出':'');
+      capEl.style.color=pct>100?'#e11d48':'#565e78';
+      if(i===fits-1) msg.innerHTML='背包<b>装满</b>了。可这句话还有 '+(d.length-fits)+
+        ' 个词没读完——每多读一个词，就必须把<b>最早上车的那块</b>挤出去。';
+      i++;
+      timers.push(setTimeout(tick,215));
+    };
+    timers.push(setTimeout(tick,260));
+  }
+  function finish(used,cap,fits){
+    var n=DATA[mode].en.length;
+    var squeezed=Math.max(0,n-fits);
+    var names=DATA[mode].en.slice(0,squeezed);
+    srcBox.children[n-1].classList.remove('act');
+    DATA[mode].out.forEach(function(pair,k){
+      timers.push(setTimeout(function(){
+        var w=document.createElement('span'); w.className='w'+(pair[1]?' garbled':'');
+        w.textContent=pair[0]+' '; outBox.appendChild(w);
+        requestAnimationFrame(function(){w.classList.add('in')});
+      }, 140*k));
+    });
+    timers.push(setTimeout(function(){
+      running=false;
+      if(DATA[mode].ok){
+        msg.innerHTML='✅ <b>短句：c 装得下。</b>7 个词的信息都进了同一个向量，译文完整、顺序也对。'+
+          '这就是为什么早期的 Seq2Seq 在<b>短句</b>上表现得还不错。';
+      }else{
+        msg.innerHTML='❌ <b>长句：c 装不下。</b>'+n+' 个词要挤进固定容量的向量，最后有 <b>'+squeezed+
+          ' 个词被挤了出去</b>：<span style="color:#be123c">'+names.join(' ')+'</span>——'+
+          '正是<b>句首那几个词</b>，因为它们在记忆里被稀释得最久。<br>'+
+          '所以译文开头的「The agreement on」只能糊过去（右侧红色部分）。'+
+          '<span class="muted">（此处为示意：真实模型不会这么戏剧化，但「长句质量下降」是论文里可测量的现象。）</span>';
+      }
+    }, 140*DATA[mode].out.length+300));
+  }
+  $$('[data-bn]').forEach(function(b){
+    b.addEventListener('click',function(){
+      $$('[data-bn]').forEach(function(x){x.classList.remove('on')});
+      b.classList.add('on'); mode=b.dataset.bn; reset(); renderSource();
+      msg.innerHTML='已切换到<b>'+(mode==='short'?'短句':'长句')+'</b>，点「播放」开始。';
+    });
+  });
+  $('#bnPlay').addEventListener('click',function(){ if(!running) play(); });
+  reset(); renderSource();
+})();
+
+/* ============================================================
+   演示 5 · 双向 RNN
+   ============================================================ */
+(function(){
+  var box=$('#biToks'), msg=$('#biMsg'); if(!box) return;
+  var EN=['The','agreement','on','the','European','Economic','Area','was','signed','in','August','1990','.'];
+  EN.forEach(function(t,i){ box.appendChild(mkTok(t)); });
+  var toks=$$('.tok',box);
+  function clear(){toks.forEach(function(t){t.classList.remove('fwd','bwd','both')})}
+  function show(j){
+    clear();
+    toks.forEach(function(t,i){
+      t.classList.add(i<j?'fwd':i>j?'bwd':'both');
+    });
+    msg.innerHTML='<b>→h</b><sub>'+j+'</sub> 读到了：<span style="color:#0284c7">'+EN.slice(0,j+1).join(' ')+
+      '</span>（从左往右，读到「'+EN[j]+'」为止）<br>'+
+      '<b>←h</b><sub>'+j+'</sub> 读到了：<span style="color:#b45309">'+EN.slice(j).join(' ')+
+      '</span>（从右往左，读到这里）<br>'+
+      '拼起来就是 <b>h<sub>'+j+'</sub> = [ →h<sub>'+j+'</sub> ; ←h<sub>'+j+'</sub> ]</b>'+
+      '——它同时知道「自己左边有什么」和「自己右边有什么」。<br>'+
+      '<span class="muted">举例：'+EN[j]+' 能同时看到左边的 '+(j>0?EN[j-1]:'—')+' 和右边的 '+(j<EN.length-1?EN[j+1]:'—')+
+      '，这对判断词性和搭配非常关键。</span>';
+  }
+  toks.forEach(function(t,i){
+    t.addEventListener('mouseenter',function(){show(i)});
+    t.addEventListener('focus',function(){show(i)});
+    t.tabIndex=0;
+  });
+  show(6);
+})();
+
+/* ============================================================
+   图 1 · BLEU 曲线
+   ============================================================ */
+(function(){
+  var cv=$('#bleuChart'); if(!cv) return;
+  var LEN=[10,15,20,25,30,35,40,45,50,55,60,65,70];
+  var N1=[27,25.8,24.2,22.3,20.1,17.6,15.0,12.5,10.2,8.1,6.2,4.6,3.3];
+  var N2=[24.8,26.2,27.2,27.8,28.1,28.3,28.3,28.2,28.2,28.1,28.0,27.6,27.0];
+  var prog=0, started=false, hoverI=-1;
+  onResize(draw);
+  function draw(){
+    var g=fitCanvas(cv), w=g.__w, h=g.__h;
+    var L=48,R=18,T=18,B=34;
+    var pw=w-L-R, ph=h-T-B;
+    var maxX=75, maxY=32;
+    var X=function(v){return L+pw*(v/maxX)};
+    var Y=function(v){return T+ph*(1-v/maxY)};
+    g.clearRect(0,0,w,h);
+    /* 网格 */
+    g.font='11px ui-monospace,monospace'; g.textBaseline='middle';
+    for(var yv=0;yv<=maxY;yv+=8){
+      g.strokeStyle='#eef0f8'; g.lineWidth=1;
+      g.beginPath(); g.moveTo(L,Y(yv)); g.lineTo(w-R,Y(yv)); g.stroke();
+      g.fillStyle='#9aa2b8'; g.textAlign='right'; g.fillText(yv, L-8, Y(yv));
+    }
+    for(var xv=0;xv<=maxX;xv+=15){
+      g.strokeStyle='#f2f4fb';
+      g.beginPath(); g.moveTo(X(xv),T); g.lineTo(X(xv),h-B); g.stroke();
+      g.fillStyle='#9aa2b8'; g.textAlign='center'; g.fillText(xv, X(xv), h-B+16);
+    }
+    g.fillStyle='#6b7288'; g.font='12px system-ui,sans-serif';
+    g.textAlign='center'; g.fillText('句子长度（词）', L+pw/2, h-8);
+    g.save(); g.translate(14,T+ph/2); g.rotate(-Math.PI/2); g.fillText('BLEU',0,0); g.restore();
+    /* 曲线 */
+    function line(data,color,width,fill){
+      var n=Math.max(2,Math.ceil(LEN.length*prog));
+      g.beginPath();
+      for(var i=0;i<n;i++){
+        var x=X(LEN[i]), y=Y(data[i]);
+        if(i===0)g.moveTo(x,y); else g.lineTo(x,y);
+      }
+      g.strokeStyle=color; g.lineWidth=width; g.lineJoin='round'; g.lineCap='round'; g.stroke();
+      if(fill){
+        g.lineTo(X(LEN[n-1]),h-B); g.lineTo(X(LEN[0]),h-B); g.closePath();
+        g.fillStyle=fill; g.fill();
+      }
+      if(prog>=1){
+        data.forEach(function(v,i){
+          g.beginPath(); g.arc(X(LEN[i]),Y(v),2.6,0,6.283);
+          g.fillStyle='#fff'; g.fill(); g.strokeStyle=color; g.lineWidth=1.8; g.stroke();
+        });
+      }
+    }
+    line(N1,'#4f46e5',2.6,null);
+    line(N2,'#0d9488',2.8,null);
+    /* 悬停 */
+    if(hoverI>=0 && prog>=1){
+      var i=hoverI;
+      g.strokeStyle='#c9cee4'; g.setLineDash([4,4]);
+      g.beginPath(); g.moveTo(X(LEN[i]),T); g.lineTo(X(LEN[i]),h-B); g.stroke();
+      g.setLineDash([]);
+      [[N1,'#4f46e5'],[N2,'#0d9488']].forEach(function(d){
+        g.beginPath(); g.arc(X(LEN[i]),Y(d[0][i]),5,0,6.283);
+        g.fillStyle=d[1]; g.fill(); g.strokeStyle='#fff'; g.lineWidth=2; g.stroke();
+      });
+    }
+    /* 标注 */
+    if(prog>=1){
+      g.font='600 12.5px system-ui,sans-serif'; g.textAlign='left';
+      g.fillStyle='#4f46e5'; g.fillText('无注意力 RNNencdec', X(38), Y(19.5));
+      g.fillStyle='#0d9488'; g.fillText('有注意力 RNNsearch', X(38), Y(29.6));
+    }
+  }
+  /* 先画一张完整的图：任何环境下（无 rAF、打印、截图）都保证有内容 */
+  prog=1; draw();
+  var io=new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if(e.isIntersecting && !started){
+        started=true;
+        var t0=performance.now(); prog=0; draw();
+        (function anim(now){
+          var k=clamp((now-t0)/1100,0,1);
+          prog=1-Math.pow(1-k,3); draw();
+          if(k<1) requestAnimationFrame(anim);
+        })(t0);
+        setTimeout(function(){ if(prog<1){ prog=1; draw(); } },1400);
+      }
+    });
+  },{threshold:.3});
+  io.observe(cv);
+  cv.addEventListener('mousemove',function(ev){
+    var r=cv.getBoundingClientRect();
+    var w=cv.clientWidth, L=48, R=18, pw=w-L-R, mx=ev.clientX-r.left;
+    var v=clamp((mx-L)/pw,0,1)*75, best=0, bd=1e9;
+    LEN.forEach(function(len,i){var d=Math.abs(len-v); if(d<bd){bd=d;best=i}});
+    hoverI=best; draw();
+    showTip('长度 '+LEN[best]+' 词<br>无注意力 <b>'+N1[best]+'</b> BLEU<br>有注意力 <b style="color:#5eead4">'+N2[best]+'</b> BLEU', ev.clientX, r.top+40);
+  });
+  cv.addEventListener('mouseleave',function(){hoverI=-1;hideTip();draw()});
+})();
+
+/* ============================================================
+   演示 8 & 图 2 · Bahdanau 注意力（数据共用）
+   ============================================================ */
+var EN=['The','agreement','on','the','European','Economic','Area','was','signed','in','August','1990','.','<eos>'];
+var FR=["L'","accord","sur","la","zone","économique","européenne","a","été","signé","en","août","1990",".","<eos>"];
+/* 每一行 = 生成这个法文词时，注意力主要落在那几个英文词上
+   英文: 0 The · 1 agreement · 2 on · 3 the · 4 European · 5 Economic · 6 Area
+         7 was · 8 signed · 9 in · 10 August · 11 1990 · 12 . · 13 <eos>
+   法文: L' accord sur la zone économique européenne a été signé en août 1990 . */
+var ANCH=[
+  [[0,.72],[3,.22]],            /* L'          ← The / the            */
+  [[1,.86],[0,.08]],            /* accord      ← agreement            */
+  [[2,.84]],                    /* sur         ← on                   */
+  [[3,.55],[6,.18],[7,.06]],    /* la          ← the / Area           */
+  [[6,.74],[5,.10]],            /* zone        ← Area（语序被打乱！）  */
+  [[5,.88]],                    /* économique  ← Economic             */
+  [[4,.88]],                    /* européenne  ← European             */
+  [[7,.55],[9,.18],[11,.06]],   /* a           ← was                  */
+  [[7,.66],[9,.20]],            /* été         ← was / signed         */
+  [[8,.92]],                    /* signé       ← signed               */
+  [[9,.90]],                    /* en          ← in                   */
+  [[10,.94]],                   /* août        ← August               */
+  [[11,.95]],                   /* 1990        ← 1990                 */
+  [[12,.90]],                   /* .           ← .                    */
+  [[13,.88]]                    /* <eos>       ← <eos>                */
+];
+var BASE=0.045;
+function distrib(t){
+  var a=EN.map(function(){return BASE});
+  ANCH[t].forEach(function(p){ a[p[0]]+=p[1] });
+  var s=a.reduce(function(x,y){return x+y},0);
+  return {
+    e:a.map(function(v){return Math.log(v/BASE)}),   /* 相对分数，最低为 0 */
+    a:a.map(function(v){return v/s})                 /* softmax 之后 = 注意力权重 */
+  };
+}
+function embOf(j,k){return Math.sin((j+1)*(k+1)*0.63)*0.62+Math.cos((j+2)*(k+2)*0.37)*0.38}
+function ctxOf(p){
+  var out=[];
+  for(var k=0;k<18;k++){
+    var v=0; for(var j=0;j<EN.length;j++) v+=p[j]*embOf(j,k);
+    out.push(v);
+  }
+  return out;
+}
+
+/* --- 演示 8：逐词翻译 --- */
+(function(){
+  var srcBox=$('#trSrc'), scoreBox=$('#trScores'), calc=$('#trCalc'), ctxBox=$('#trCtx'),
+      outBox=$('#trOut'), msg=$('#trMsg');
+  if(!srcBox) return;
+  var t=0, busy=false, lastP=null, auto=null;
+  var srcToks=[];
+  EN.forEach(function(tok,i){ var el=mkTok(tok); el.dataset.j=i; srcBox.appendChild(el); srcToks.push(el); });
+
+  function reset(){
+    if(auto){clearInterval(auto);auto=null;$('#trAuto').textContent='自动播放';$('#trAuto').classList.remove('primary');}
+    t=0; busy=false; lastP=null;
+    scoreBox.innerHTML='<div class="ghost">—— 点「下一步」开始 ——</div>';
+    calc.textContent='等待第一次计算…';
+    ctxBox.innerHTML=''; outBox.innerHTML='';
+    srcToks.forEach(function(el){el.className='tok';el.style.cssText=''});
+    msg.innerHTML='鼠标移到源句的词上，也能看到它当前的权重。';
+  }
+  function paintSrc(p){
+    lastP=p;
+    var mx=Math.max.apply(null,p);
+    srcToks.forEach(function(el,j){
+      var v=p[j], r=v/(mx||1);
+      el.className='tok';
+      el.style.background=v>0.02?'rgba(79,70,229,'+(v*0.92).toFixed(3)+')':'#fff';
+      el.style.borderColor=v>0.02?'rgba(79,70,229,'+clamp(v*2,0,1).toFixed(3)+')':'var(--line)';
+      el.style.color=v>0.45?'#fff':'inherit';
+    });
+  }
+  function renderScores(d){
+    scoreBox.innerHTML='';
+    var order=EN.map(function(_,j){return j}).sort(function(a,b){return d.a[b]-d.a[a]});
+    order.slice(0,8).forEach(function(j){
+      var row=document.createElement('div'); row.className='scorerow';
+      var lab=document.createElement('div'); lab.className='lab'; lab.textContent=EN[j];
+      var b1=document.createElement('div'); b1.className='bar warm'; b1.innerHTML='<i></i>';
+      var b2=document.createElement('div'); b2.className='bar'; b2.innerHTML='<i></i>';
+      var wv=document.createElement('div'); wv.className='wv'; wv.textContent=d.a[j].toFixed(3);
+      row.appendChild(lab);row.appendChild(b1);row.appendChild(b2);row.appendChild(wv);
+      scoreBox.appendChild(row);
+      b1.firstChild.style.width=(d.e[j]/2.9*100)+'%';
+      b2.firstChild.style.width=(d.a[j]/Math.max.apply(null,d.a)*100)+'%';
+    });
+  }
+  function step(){
+    if(busy) return;
+    if(t>=FR.length){ msg.innerHTML='🎉 翻译完成。请注意：<b>每一步都重新算了一次 c<sub>t</sub></b>，'+
+      '而每一步目光落的地方都不一样——这就是「对齐」被学出来的证据。'; return; }
+    busy=true;
+    var d=distrib(t), out=FR[t];
+    var order=EN.map(function(_,j){return j}).sort(function(a,b){return d.a[b]-d.a[a]});
+    var top=order.slice(0,3).filter(function(j){return d.a[j]>0.05});
+    var peak=d.a[order[0]];
+    var hm={e:d.e,a:d.a,t:top,peak:peak,tok:out,t:t};
+
+    $$('.stepchip')[0].classList.remove('on');$$('.stepchip')[1].classList.remove('on');$$('.stepchip')[2].classList.remove('on');
+    $$('.stepchip')[0].classList.add('on');
+    renderScores(d);
+    var prevTxt = t>0 ? '解码器状态 s<sub>'+(t-1)+'</sub> 里，还带着刚刚写下「'+FR[t-1]+'」留下的信息'
+                      : '解码器还没写过任何词，此刻用的是初始状态 s<sub>0</sub>';
+    calc.innerHTML='<span class="ghost">第 '+(t+1)+' 步 · 要生成的是「'+out+'」。'+prevTxt+'。</span>'+
+      '<br>① 用它与每一个 h<sub>j</sub> 打分 → 得到 e<sub>tj</sub>（黄条）。';
+
+    setTimeout(function(){
+      $$('.stepchip')[0].classList.remove('on');$$('.stepchip')[1].classList.add('on');
+      calc.innerHTML+='<br>② softmax 把分数变成权重 α<sub>tj</sub>（紫条，加起来 = 1）：<b>'+
+        top.map(function(j){return EN[j]+' '+d.a[j].toFixed(3)}).join('　')+'</b>';
+      paintSrc(d.a);
+      var hot=scoreBox.children[0]; if(hot) hot.classList.add('hot');
+    },380);
+
+    setTimeout(function(){
+      $$('.stepchip')[1].classList.remove('on');$$('.stepchip')[2].classList.add('on');
+      var c=ctxOf(d.a);
+      ctxBox.innerHTML='';
+      c.forEach(function(v){
+        var i=document.createElement('i');
+        var a=clamp(Math.abs(v),0,1);
+        i.style.background=v>=0?'rgba(79,70,229,'+(0.15+0.85*a).toFixed(2)+')':'rgba(225,29,72,'+(0.15+0.85*a).toFixed(2)+')';
+        i.title=v.toFixed(2);
+        ctxBox.appendChild(i);
+      });
+      calc.innerHTML+='<br>③ 加权求和 c<sub>t</sub> = Σ α<sub>tj</sub>h<sub>j</sub>：'+
+        '这个向量主要由 <b>'+top.map(function(j){return EN[j]}).join(' + ')+'</b> 混合而成。'+
+        '<br>集中度：<b>'+(peak>0.5?'非常集中——几乎只看一个词':peak>0.28?'比较集中':'较为分散，同时参考多处')+'</b>'+
+        '（最高权重 '+peak.toFixed(3)+'）。';
+    },760);
+
+    setTimeout(function(){
+      var el=mkTok(out); el.style.background='#0d9488'; el.style.color='#fff'; el.style.opacity='0';
+      el.style.transition='.3s';
+      outBox.appendChild(el);
+      requestAnimationFrame(function(){el.style.opacity='1'});
+      calc.innerHTML+='<br>→ 解码器用 c<sub>t</sub> 和 s<sub>'+(t===0?'0':t-1)+'</sub> 生成新状态 s<sub>'+t+
+        '</sub>，并预测出这个词：<b style="color:#0d9488;font-size:15px">'+out+'</b>';
+      msg.innerHTML='生成「<b>'+out+'</b>」时，注意力最主要落在：'+
+        top.map(function(j){return '<b style="color:#4f46e5">'+EN[j]+'</b>('+d.a[j].toFixed(2)+')'}).join('、')+
+        '。<span class="muted">'+(
+          /Area/.test(EN[order[0]])&&out==='zone' ? ' 典型例子：法文把名词 zone 提前，英文 Area 在后面——注意力跨过去把「区」取了回来。'
+          : out==='été'||out==='a' ? ' 注意这里：「a été」是法语完成时，模型回看的正是英文的 was / signed。'
+          : '')+'</span>';
+      t++; busy=false;
+    },1120);
+  }
+  $('#trStep').addEventListener('click',step);
+  $('#trReset').addEventListener('click',reset);
+  $('#trAuto').addEventListener('click',function(){
+    if(auto){clearInterval(auto);auto=null;this.textContent='自动播放';this.classList.remove('primary');}
+    else{
+      this.textContent='暂停';this.classList.add('primary');
+      var self=this;
+      auto=setInterval(function(){
+        if(t>=FR.length){clearInterval(auto);auto=null;self.textContent='自动播放';self.classList.remove('primary');return}
+        step();
+      },1500);
+    }
+  });
+  srcToks.forEach(function(el,j){
+    el.addEventListener('mouseenter',function(ev){
+      if(!lastP) return;
+      showTip(EN[j]+' → α = <b>'+lastP[j].toFixed(3)+'</b>', ev.clientX, ev.clientY);
+    });
+    el.addEventListener('mouseleave',hideTip);
+  });
+  reset();
+})();
+
+/* --- 图 2：对齐热图 --- */
+(function(){
+  var host=$('#alignHeat'), msg=$('#alignMsg'); if(!host) return;
+  var ALPHA=FR.map(function(_,t){return distrib(t).a});
+  var locked=-1, cells=[], rowLabels=[], colLabels=[];
+  host.style.gridTemplateColumns='96px repeat('+EN.length+',1fr)';
+  var corner=document.createElement('div'); host.appendChild(corner);
+  EN.forEach(function(tok,j){
+    var d=document.createElement('div'); d.className='cl'; d.textContent=tok;
+    host.appendChild(d); colLabels.push(d);
+  });
+  FR.forEach(function(tok,i){
+    var rl=document.createElement('div'); rl.className='rl'; rl.textContent=tok;
+    host.appendChild(rl); rowLabels.push(rl);
+    var row=[];
+    EN.forEach(function(_,j){
+      var c=document.createElement('div'); c.className='cell';
+      var v=ALPHA[i][j];
+      var a=clamp(Math.pow(v,0.62),0,1);
+      c.style.background=v<0.012?'#f5f6fc':'rgba('+Math.round(99-40*a)+','+Math.round(102-50*a)+','+Math.round(241-100*a)+','+(0.12+0.88*a).toFixed(3)+')';
+      c.dataset.v=v; c.dataset.i=i; c.dataset.j=j;
+      host.appendChild(c); row.push(c);
+    });
+    cells.push(row);
+  });
+  function lock(i){
+    locked=i;
+    cells.forEach(function(row,r){
+      row.forEach(function(c){ c.classList.toggle('dimrow', i>=0&&r!==i); });
+      rowLabels[r].classList.toggle('dimrow', i>=0&&r!==i);
+    });
+    colLabels.forEach(function(c){c.classList.remove('dimcol')});
+    if(i>=0){
+      var top=EN.map(function(_,j){return {j:j,v:ALPHA[i][j]}}).sort(function(a,b){return b.v-a.v}).slice(0,3);
+      msg.innerHTML='生成法文「<b>'+FR[i]+'</b>」时，注意力主要给了：'+
+        top.map(function(o){return '<b style="color:#4f46e5">'+EN[o.j]+'</b>（'+o.v.toFixed(3)+'）'}).join('、')+
+        '。<br><span class="muted">权重加起来永远是 1——这是 softmax 的保证，也是「软对齐」的含义：不是二选一，而是按比例分配注意力。</span>';
+    }
+  }
+  host.addEventListener('mousemove',function(ev){
+    var c=ev.target.closest('.cell'); if(!c){hideTip();return}
+    var i=+c.dataset.i, j=+c.dataset.j;
+    showTip('生成「'+FR[i]+'」← 看「'+EN[j]+'」<br>α = <b>'+(+c.dataset.v).toFixed(3)+'</b>', ev.clientX, ev.clientY);
+  });
+  host.addEventListener('mouseleave',hideTip);
+  host.addEventListener('click',function(ev){
+    var c=ev.target.closest('.cell');
+    if(!c){ lock(-1); msg.innerHTML='已取消锁定。'; return }
+    var i=+c.dataset.i;
+    lock(locked===i?-1:i);
+  });
+  msg.innerHTML='提示：<b>鼠标悬停看数值，点击某一行可以锁定</b>。注意这条斜带几乎和论文里画的一模一样——'+
+    '而模型<b>从未被告知过任何词对齐</b>，对齐是它在学翻译时顺便学会的。';
+})();
+
+/* ============================================================
+   演示 9 · 串行 vs 并行
+   ============================================================ */
+(function(){
+  var A=$('#raceA'),B=$('#raceB'),cA=$('#clockA'),cB=$('#clockB'),bA=$('#barA'),bB=$('#barB'),msg=$('#raceMsg');
+  if(!A) return;
+  var N=6, timers=[], running=false;
+  function build(host){
+    host.innerHTML=''; var out=[];
+    for(var i=0;i<N;i++){
+      var d=document.createElement('div'); d.className='node'; d.textContent=(i+1);
+      host.appendChild(d); out.push(d);
+    }
+    return out;
+  }
+  var na=build(A), nb=build(B);
+  function reset(){
+    timers.forEach(clearTimeout); timers=[]; running=false;
+    na.concat(nb).forEach(function(n){n.className='node'});
+    cA.textContent='时刻 0 / 6'; cB.textContent='时刻 0 / 1';
+    bA.style.width='0%'; bB.style.width='0%';
+  }
+  function play(){
+    reset(); running=true;
+    var STEP=400;
+    for(var i=0;i<N;i++){
+      (function(i){
+        timers.push(setTimeout(function(){
+          na.forEach(function(n,k){ n.className='node'+(k<i?' done':k===i?' on':'') });
+          cA.textContent='时刻 '+(i+1)+' / 6';
+          bA.style.width=((i+1)/N*100)+'%';
+          if(i===0) msg.innerHTML='左边：第 1 个词开始算……第 2 个词必须<b>等</b>它算完。';
+        }, 320+i*STEP));
+      })(i);
+    }
+    timers.push(setTimeout(function(){
+      nb.forEach(function(n){n.className='node all'});
+      cB.textContent='时刻 1 / 1'; bB.style.width='100%';
+    },320));
+    timers.push(setTimeout(function(){
+      na.forEach(function(n){n.className='node done'});
+      msg.innerHTML='🏁 同时开始，同时结束：<b>RNN 走完了 6 个时间步，另一条路只走了 1 步</b>。<br>'+
+        '这不是 6 倍的小差距——句子有 100 个词就是 100 步，而且每一步都要读写一遍内存。'+
+        '<b>Transformer 的全部价值，就是把「必须排队」变成了「一起上」</b>，代价是必须自己补上位置信息（见 4.5）。';
+      running=false;
+    }, 320+N*STEP+250));
+  }
+  $('#racePlay').addEventListener('click',function(){ if(!running) play() });
+  reset();
+})();
+
+/* ============================================================
+   演示 10 · Q / K / V 现场计算
+   ============================================================ */
+(function(){
+  var tokBox=$('#qkvToks'), scoreBox=$('#qkvScores'), msg=$('#qkvMsg'),
+      plane=$('#qkvPlane'), outCv=$('#qkvOut'), tempEl=$('#qkvTemp'), tempV=$('#qkvTempV');
+  if(!tokBox) return;
+  var T=['苹果','掉','在','地上','因为','它','熟','了'];
+  var D=[
+    {q:[0.55,0.40],k:[1.00,0.12],v:[0.95,0.15]},
+    {q:[0.30,0.70],k:[0.18,0.85],v:[0.20,0.90]},
+    {q:[0.15,0.35],k:[0.10,0.45],v:[0.10,0.40]},
+    {q:[0.55,0.45],k:[0.62,0.35],v:[0.60,0.40]},
+    {q:[0.20,0.60],k:[0.08,0.30],v:[0.10,0.25]},
+    {q:[3.20,0.30],k:[0.50,0.25],v:[0.15,0.50]},
+    {q:[0.40,0.65],k:[0.50,0.75],v:[0.50,0.80]},
+    {q:[0.10,0.30],k:[0.12,0.35],v:[0.10,0.30]}
+  ];
+  var sel=5, temp=1, toks=[];
+  T.forEach(function(t,i){
+    var el=mkTok(t); el.addEventListener('click',function(){ sel=i; refresh(true) });
+    tokBox.appendChild(el); toks.push(el);
+  });
+  function calc(){
+    var q=D[sel].q, raw=[], sc=[];
+    D.forEach(function(d){
+      var dp=q[0]*d.k[0]+q[1]*d.k[1];
+      raw.push(dp); sc.push(dp/Math.SQRT2);
+    });
+    return {raw:raw, sc:sc, w:softmax(sc,temp)};
+  }
+  function arrow(g,x1,y1,x2,y2,color,width,hl){
+    g.strokeStyle=color; g.fillStyle=color; g.lineWidth=width; g.lineCap='round';
+    g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke();
+    var a=Math.atan2(y2-y1,x2-x1), L=hl||7;
+    g.beginPath(); g.moveTo(x2,y2);
+    g.lineTo(x2-L*Math.cos(a-0.4), y2-L*Math.sin(a-0.4));
+    g.lineTo(x2-L*Math.cos(a+0.4), y2-L*Math.sin(a+0.4));
+    g.closePath(); g.fill();
+  }
+  function tlabel(g,text,x,y,color,size,align){
+    g.font='700 '+(size||11)+'px system-ui,sans-serif'; g.textAlign=align||'left';
+    g.lineWidth=3.4; g.lineJoin='round'; g.strokeStyle='rgba(255,255,255,.94)';
+    g.strokeText(text,x,y); g.fillStyle=color; g.fillText(text,x,y);
+  }
+  function drawPlane(M){
+    var g=fitCanvas(plane), w=g.__w, h=g.__h;
+    g.clearRect(0,0,w,h);
+    var mags=D.map(function(d){return Math.hypot(d.k[0],d.k[1])});
+    mags.push(Math.hypot(D[sel].q[0],D[sel].q[1]));
+    var mx=Math.max.apply(null,mags);
+    var s=clamp(Math.min(w*0.74/mx, h*0.60/mx), 38, 150);
+    var ox=w*0.11, oy=h*0.70;
+    var P=function(v){return [ox+v[0]*s, oy-v[1]*s]};
+    /* 单位网格 */
+    g.strokeStyle='#f1f3fa'; g.lineWidth=1;
+    for(var gx=1;gx*s<w*0.94;gx++){
+      g.beginPath(); g.moveTo(ox+gx*s,oy-h*0.92); g.lineTo(ox+gx*s,oy); g.stroke();
+    }
+    for(var gy=1;gy*s<h*0.92;gy++){
+      g.beginPath(); g.moveTo(ox,oy-gy*s); g.lineTo(Math.min(w-6,ox+w*0.92),oy-gy*s); g.stroke();
+    }
+    g.strokeStyle='#dfe3f0';
+    g.beginPath(); g.moveTo(ox,oy); g.lineTo(Math.min(w-6,ox+w*0.92),oy); g.moveTo(ox,oy); g.lineTo(ox,oy-h*0.92); g.stroke();
+    var qp=P(D[sel].q);
+    var order=M.w.map(function(v,j){return j}).sort(function(a,b){return M.w[b]-M.w[a]});
+    var topN=order.slice(0,3);
+    /* 所有 K */
+    D.forEach(function(d,j){
+      var kp=P(d.k), hot=topN.indexOf(j)>=0;
+      arrow(g,ox,oy,kp[0],kp[1],hot?'rgba(14,165,233,.85)':'rgba(14,165,233,.30)',hot?2.1:1.4,hot?7:5);
+    });
+    /* q 方向延长线 */
+    var L=Math.hypot(qp[0]-ox,qp[1]-oy)||1;
+    var ux=(qp[0]-ox)/L, uy=(qp[1]-oy)/L;
+    g.strokeStyle='rgba(245,158,11,.32)'; g.setLineDash([5,5]); g.lineWidth=1.2;
+    g.beginPath(); g.moveTo(ox,oy); g.lineTo(ox+ux*L*1.25, oy+uy*L*1.25); g.stroke(); g.setLineDash([]);
+    /* 投影：前 2 名 */
+    order.slice(0,2).forEach(function(j){
+      var kp=P(D[j].k);
+      var proj=((kp[0]-ox)*ux+(kp[1]-oy)*uy);
+      var fx=ox+ux*proj, fy=oy+uy*proj;
+      g.strokeStyle='rgba(79,70,229,.55)'; g.setLineDash([3,3]); g.lineWidth=1.3;
+      g.beginPath(); g.moveTo(kp[0],kp[1]); g.lineTo(fx,fy); g.stroke(); g.setLineDash([]);
+    });
+    order.slice(0,2).forEach(function(j){
+      var kp=P(D[j].k);
+      var proj=((kp[0]-ox)*ux+(kp[1]-oy)*uy);
+      var fx=ox+ux*proj, fy=oy+uy*proj;
+      g.beginPath(); g.arc(fx,fy,3.8,0,6.283); g.fillStyle='#4f46e5'; g.fill();
+      g.strokeStyle='#fff'; g.lineWidth=1.6; g.stroke();
+    });
+    /* K 的标签：沿箭头方向 86% 处，向两侧错开 */
+    topN.forEach(function(j,k){
+      var kp=P(D[j].k);
+      var ang=Math.atan2(kp[1]-oy,kp[0]-ox);
+      var side=(k%2===0)?1:-1;
+      var lx=ox+(kp[0]-ox)*0.88 - Math.sin(ang)*13*side;
+      var ly=oy+(kp[1]-oy)*0.88 + Math.cos(ang)*13*side;
+      if(j===order[0]){
+        tlabel(g,'★ '+T[j]+'  k（最匹配）',lx,ly+3,'#0369a1',11.5,side>0?'left':'right');
+      }else{
+        tlabel(g,T[j]+'  k',lx,ly+3,'#64748b',10.5,side>0?'left':'right');
+      }
+    });
+    /* Q */
+    arrow(g,ox,oy,qp[0],qp[1],'#f59e0b',3.6,11);
+    tlabel(g,'q「'+T[sel]+'」',ox+(qp[0]-ox)*0.52-4, oy+(qp[1]-oy)*0.52-9,'#b45309',12);
+    g.fillStyle='#9aa2b8'; g.font='11px system-ui,sans-serif'; g.textAlign='left';
+    g.fillText('虚线 = 每个 k 在 q 方向上的投影：越长 = q·k 越大', 10, 16);
+    g.fillText('（每个词都有自己的 q / k / v；这里固定看「'+T[sel]+'」的 q。1 格 = 1 个单位）', 10, 32);
+  }
+  function drawOut(M){
+    var g=fitCanvas(outCv), w=g.__w, h=g.__h;
+    g.clearRect(0,0,w,h);
+    var outv=[0,0];
+    D.forEach(function(d,j){ outv[0]+=M.w[j]*d.v[0]; outv[1]+=M.w[j]*d.v[1] });
+    var mags=D.map(function(d){return Math.hypot(d.v[0],d.v[1])});
+    mags.push(Math.hypot(outv[0],outv[1]));
+    var mx=Math.max.apply(null,mags);
+    var s=clamp(Math.min(w*0.66/mx,h*0.50/mx),26,120);
+    var ox=w*0.10, oy=h*0.48;
+    var P=function(v){return [ox+v[0]*s, oy-v[1]*s]};
+    var best=M.w.indexOf(Math.max.apply(null,M.w));
+    var vTop=M.w.map(function(v,j){return j}).sort(function(a,b){return M.w[b]-M.w[a]}).slice(0,3);
+    D.forEach(function(d,j){
+      var p=P(d.v);
+      arrow(g,ox,oy,p[0],p[1],'rgba(13,148,136,'+(0.14+0.5*M.w[j]).toFixed(2)+')',1+3*M.w[j],6);
+      if(vTop.indexOf(j)>=0){
+        tlabel(g,T[j]+' v（'+(M.w[j]*100).toFixed(0)+'%）', p[0]+6, p[1]+3,'#0f766e',10.5);
+      }
+    });
+    var op=P(outv);
+    arrow(g,ox,oy,op[0],op[1],'#0d9488',3.6,10);
+    tlabel(g,'输出 = 加权后的 v', op[0]+7, op[1]+4,'#0f766e',12);
+    g.fillStyle='#9aa2b8'; g.font='11px system-ui,sans-serif';
+    g.textAlign='left';
+    g.fillText('浅色箭头 = 各词的 v（越粗权重越大，只标注权重前 3 名）', 10, h-26);
+    g.fillText('深绿 = 加权求和的结果：它被「'+T[best]+'」拉过去了', 10, h-9);
+    return {outv:outv,best:best};
+  }
+  function refresh(redraw){
+    var M=calc();
+    toks.forEach(function(el,i){
+      el.className='tok'+(i===sel?' act':'');
+    });
+    scoreBox.innerHTML='';
+    var order=M.w.map(function(v,j){return j}).sort(function(a,b){return M.w[b]-M.w[a]});
+    order.forEach(function(j){
+      var row=document.createElement('div'); row.className='scorerow narrow';
+      var lab=document.createElement('div'); lab.className='lab'; lab.textContent=T[j];
+      var bar=document.createElement('div'); bar.className='bar'; bar.innerHTML='<i></i>';
+      var wv=document.createElement('div'); wv.className='wv'; wv.textContent=M.w[j].toFixed(3);
+      wv.style.color=M.w[j]>0.2?'#4f46e5':'#8b93a9';
+      row.appendChild(lab); row.appendChild(bar); row.appendChild(wv);
+      scoreBox.appendChild(row);
+      bar.firstChild.style.width=(M.w[j]/Math.max.apply(null,M.w)*100)+'%';
+    });
+    var info=drawOut(M);
+    if(redraw!==false) drawPlane(M);
+    msg.innerHTML='「<b>'+T[sel]+'</b>」的 query 和所有 key 做点积（已除以 √d<sub>k</sub>）：最高的是 <b>'+T[order[0]]+
+      '</b>（'+M.sc[order[0]].toFixed(2)+'）。softmax 之后它拿走 <b>'+(M.w[order[0]]*100).toFixed(0)+'%</b> 的注意力，'+
+      '于是这个位置的输出向量被「'+T[info.best]+'」的 v 明显拉了过去。<br>'+
+      '<span class="muted">所以下一层看到的「'+T[sel]+'」已经不是代词了，而是一个<b>朝着「苹果」偏移</b>的表示——这就是 Transformer 传递语义的方式。</span>';
+  }
+  tempEl.addEventListener('input',function(){
+    temp=+tempEl.value; tempV.textContent=temp.toFixed(2)+'×';
+    var M=calc();
+    var top=M.w.indexOf(Math.max.apply(null,M.w));
+    msg.innerHTML='温度 = <b>'+temp.toFixed(2)+'×</b>：'+ (temp<0.8?
+      '权重变得更<b>尖锐</b>，最相关的词几乎独占注意力（更像「只盯着一个词看」）。':
+      temp>1.4? '权重变得更<b>平均</b>，注意力蔓延到很多词上（更像「眉毛胡子一把抓」）。':
+      '这是标准的缩放点积注意力：只除以 √d<sub>k</sub>，不加额外温度。');
+    refresh(true);
+  });
+  $('#qkvReset').addEventListener('click',function(){
+    sel=5; temp=1; tempEl.value=1; tempV.textContent='1.00×'; refresh(true);
+  });
+  onResize(function(){refresh(true)});
+  refresh(true);
+})();
+
+/* ============================================================
+   演示 11 · 多头注意力
+   ============================================================ */
+(function(){
+  var host=$('#headHeat'), msg=$('#headMsg'); if(!host) return;
+  var T=['苹果','掉','在','地上','因为','它','熟','了'];
+  var HEADS=[
+    {btn:'头 1 · 指代', tag:'指代（coreference）',
+     desc:'这个头专门负责<b>代词找先行词</b>。看「它」这一行：注意力强烈地指向「苹果」——因为熟的是苹果，不是别的东西。',
+     anc:[[5,[[0,.62],[3,.10],[6,.16]]],[6,[[0,.45],[5,.22]]],[3,[[0,.30],[2,.25]]]],
+     near:false},
+    {btn:'头 2 · 邻近', tag:'局部/邻近（locality）',
+     desc:'这个头只关心<b>挨着的词</b>：每个词主要看自己的前一个词。它像是在学「词与词的搭配和短语边界」（英文里的 n-gram 味道）。',
+     anc:[], near:true},
+    {btn:'头 3 · 动宾', tag:'句法角色（subject / object）',
+     desc:'这个头负责把<b>动作和参与者</b>连起来：「掉」看「苹果」和「地上」，「熟」看「它」。这类头让模型能区分「谁对谁做了什么」。',
+     anc:[[1,[[3,.45],[0,.35]]],[2,[[3,.60]]],[4,[[5,.35],[6,.30]]],[6,[[5,.40],[0,.22]]],[7,[[6,.40],[1,.20]]]],
+     near:false}
+  ];
+  var cur=0, cells=[];
+  function mat(h){
+    var map={};
+    (h.anc||[]).forEach(function(p){ map[p[0]]=p[1] });
+    var N=T.length, rows=[];
+    for(var i=0;i<N;i++){
+      var r=[]; for(var j=0;j<N;j++) r.push(0.055);
+      if(h.near){
+        if(i-1>=0) r[i-1]+=0.62;
+        r[i]+=0.30;
+        if(i+1<N) r[i+1]+=0.18;
+      }else{
+        (map[i]||[]).forEach(function(p){ r[p[0]]+=p[1] });
+      }
+      var s=r.reduce(function(a,b){return a+b},0);
+      rows.push(r.map(function(v){return v/s}));
+    }
+    return rows;
+  }
+  function render(h){
+    var M=mat(h), N=T.length;
+    host.innerHTML=''; cells=[];
+    host.style.gridTemplateColumns='66px repeat('+N+',1fr)';
+    host.appendChild(document.createElement('div'));
+    T.forEach(function(t){
+      var c=document.createElement('div'); c.className='cl'; c.textContent=t; c.style.height='44px';
+      host.appendChild(c);
+    });
+    for(var i=0;i<N;i++){
+      var rl=document.createElement('div'); rl.className='rl'; rl.textContent=T[i];
+      host.appendChild(rl);
+      var row=[];
+      for(var j=0;j<N;j++){
+        var v=M[i][j], a=clamp(Math.pow(v/0.5,0.6),0,1);
+        var c=document.createElement('div'); c.className='cell';
+        c.style.background=v<0.08?'#f6f7fc':'rgba('+Math.round(99-40*a)+','+Math.round(102-50*a)+','+Math.round(241-100*a)+','+(0.10+0.9*a).toFixed(3)+')';
+        c.dataset.i=i; c.dataset.j=j; c.dataset.v=v;
+        host.appendChild(c); row.push(c);
+      }
+      cells.push(row);
+    }
+    msg.innerHTML=h.desc+'<br><span class="muted">同一个句子、同一份输入，只是换了一套 W<sub>Q</sub>/W<sub>K</sub>/W<sub>V</sub>，'+
+      '关注的东西就完全不同。8 个头各看各的，最后拼起来一起送到下一层——这就是多头注意力。</span>';
+  }
+  $$('[data-head]').forEach(function(b){
+    b.addEventListener('click',function(){
+      $$('[data-head]').forEach(function(x){x.classList.remove('on')});
+      b.classList.add('on'); cur=+b.dataset.head; render(HEADS[cur]);
+    });
+  });
+  host.addEventListener('mousemove',function(ev){
+    var c=ev.target.closest('.cell'); if(!c){hideTip();return}
+    showTip(T[+c.dataset.i]+' ← '+T[+c.dataset.j]+'　α = <b>'+(+c.dataset.v).toFixed(3)+'</b>', ev.clientX, ev.clientY);
+  });
+  host.addEventListener('mouseleave',hideTip);
+  render(HEADS[0]);
+})();
+
+/* ============================================================
+   图 3 · 位置编码
+   ============================================================ */
+(function(){
+  var cv=$('#peCanvas'); if(!cv) return;
+  var NP=96, ND=64;              /* 纵轴 = 位置（96 个），横轴 = 维度（64 维） */
+  var BOX={L:46,R:16,T:18,B:30};
+  function pe(pos,dim){
+    var i=Math.floor(dim/2);
+    var ang=pos/Math.pow(10000,2*i/ND);
+    return (dim%2===0)?Math.sin(ang):Math.cos(ang);
+  }
+  function color(v){
+    var a=clamp(Math.abs(v),0,1);
+    return v>=0? 'rgba('+Math.round(250-10*a)+','+Math.round(248-120*a)+','+Math.round(235-215*a)+',1)'
+               : 'rgba('+Math.round(245-190*a)+','+Math.round(248-130*a)+','+Math.round(255-30*a)+',1)';
+  }
+  function draw(){
+    var g=fitCanvas(cv), w=g.__w, h=g.__h;
+    var L=BOX.L,R=BOX.R,Tp=BOX.T,B=BOX.B, pw=w-L-R, ph=h-Tp-B;
+    var cw=pw/ND, ch=ph/NP;
+    g.clearRect(0,0,w,h);
+    for(var p=0;p<NP;p++) for(var d=0;d<ND;d++){
+      g.fillStyle=color(pe(p,d));
+      g.fillRect(L+d*cw, Tp+p*ch, Math.ceil(cw)+0.6, Math.ceil(ch)+0.6);
+    }
+    g.fillStyle='#8b93a9'; g.font='10.5px ui-monospace,monospace';
+    g.textAlign='center';
+    for(var d2=0;d2<ND;d2+=8) g.fillText(d2, L+d2*cw+cw/2, Tp+ph+15);
+    g.textAlign='right';
+    for(var p2=0;p2<NP;p2+=16) g.fillText(p2, L-7, Tp+p2*ch+ch/2+3);
+    g.fillStyle='#6b7288'; g.font='11.5px system-ui,sans-serif'; g.textAlign='center';
+    g.fillText('维度 dim（0 → 63）', L+pw/2, h-6);
+    g.save(); g.translate(12,Tp+ph/2); g.rotate(-Math.PI/2); g.fillText('位置 pos（第几个词）',0,0); g.restore();
+    /* 指引：同一列 = 同一个维度 */
+    g.strokeStyle='rgba(79,70,229,.9)'; g.lineWidth=1.2; g.setLineDash([4,4]);
+    g.strokeRect(L+1*cw-1, Tp-2, cw+2, ph+4); g.setLineDash([]);
+  }
+  onResize(draw);
+  cv.addEventListener('mousemove',function(ev){
+    var r=cv.getBoundingClientRect(), g=cv.getContext('2d');
+    var pw=g.__w-BOX.L-BOX.R, ph=g.__h-BOX.T-BOX.B;
+    var d=clamp(Math.floor((ev.clientX-r.left-BOX.L)/(pw/ND)),0,ND-1);
+    var p=clamp(Math.floor((ev.clientY-r.top-BOX.T)/(ph/NP)),0,NP-1);
+    showTip('位置 '+p+' · 维度 '+d+'　值 = <b>'+pe(p,d).toFixed(3)+'</b>', ev.clientX, ev.clientY);
+  });
+  cv.addEventListener('mouseleave',hideTip);
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting)draw()})},{threshold:.2});
+  io.observe(cv);
+  draw();
+})();
+
+})();
+</script>
+</body>
+</html>
+.reveal{opacity:0;
