@@ -343,6 +343,17 @@ footer a{color:#a5b4fc}
 .vasum b{font-size:22px;color:var(--acc)}
 .va-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .va-lab{font-size:12.5px;font-weight:700;color:var(--ink2);margin-top:14px}
+.kvctl{display:flex;gap:26px;flex-wrap:wrap;margin-bottom:14px}
+.kvtbl{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:13.5px}
+.kvtbl th,.kvtbl td{padding:10px 13px;text-align:left;border-bottom:1px solid var(--line2);vertical-align:middle}
+.kvtbl th{background:#f7f8fd;font-size:12px;color:var(--ink2);font-weight:800}
+.kvtbl tr:last-child td{border-bottom:none}
+.kvtbl td:nth-child(2),.kvtbl td:nth-child(3),.kvtbl td:nth-child(4){font-weight:800;white-space:nowrap}
+.kvtbl td:nth-child(2){color:var(--warm)}
+.kvtbl td:nth-child(3){color:var(--acc)}
+.kvtbl td:nth-child(4){color:var(--teal)}
+.kvtbl td:last-child{color:var(--ink2);font-size:12.5px}
+.kvtbl .off{opacity:.4}
 @media(max-width:800px){.varow{grid-template-columns:52px 1fr 150px 76px;font-size:12px}input[type=range]{width:110px}}
 .reveal{opacity:0;transform:translateY(16px);transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1)}
 .reveal.in{opacity:1;transform:none}
@@ -1117,13 +1128,101 @@ footer a{color:#a5b4fc}
     <b>Q、K、V 不是三个凭空规定的新符号，它们是把 Bahdanau 的注意力「拆开重装」之后的零件。</b>
   </div>
 
+  <h4 style="margin-top:32px">回头看「改动 ②」：拆开，到底是怎么把冲突消掉的？</h4>
+  <p class="muted" style="margin-top:0">上面说「一个向量身兼两职只能折中」，然后宣布「拆成 K 和 V」。但光这样宣布是不够的——下面把<b>冲突</b>和<b>解法</b>都写成式子，看看到底是哪一个符号在起作用。</p>
+
+  <h5 style="margin:20px 0 4px;font-size:15.5px">① 先把「冲突」写成式子</h5>
+  <p>Bahdanau 的模式里，<b>同一个 h<sub>j</sub> 被送到两个地方</b>：</p>
+  <div class="formula" style="line-height:2.6">
+    e<sub>tj</sub> = v<sub>a</sub><sup>T</sup>tanh( W<sub>a</sub>s<sub>t−1</sub> + <span class="fv">U<sub>a</sub>h<sub>j</sub></span> )　　<span class="cm">// h<sub>j</sub> 在这里当「靶子」：决定要不要看它</span><br>
+    c<sub>t</sub> = Σ<sub>j</sub> α<sub>tj</sub> <span class="fv">h<sub>j</sub></span>　　　　　　　　　　　　<span class="cm">// 同一个 h<sub>j</sub> 在这里当「内容」：决定拿走什么</span>
+  </div>
+  <p>于是反向传播时，<code>∂L/∂h<sub>j</sub></code> 会同时收到<b>两路指令</b>：一路说「再把自己变得更独特一点，好让我一眼认出你」，另一路说「别动，我要按原样把你搬走」。两路要的是不同的 h<sub>j</sub>，最后只能落在两个目标之间的折中点上。<mark>注意：折中不是设计者选的，是被「共用同一个向量」这件事逼出来的。</mark></p>
+
+  <h5 style="margin:22px 0 4px;font-size:15.5px">② 拆开之后：两个需求落在两套互不相交的参数上</h5>
+  <p>引入两套<b>彼此独立</b>的投影矩阵，让同一个词派出两个代表：</p>
+  <div class="formula" style="line-height:2.6">
+    <span class="fk">k</span><sub>j</sub> = <span class="fk">W<sub>K</sub></span>x<sub>j</sub>　　　　<span class="fv">v</span><sub>j</sub> = <span class="fk">W<sub>V</sub></span>x<sub>j</sub>　　　　e<sub>ij</sub> = <span class="fq">q</span><sub>i</sub> · <span class="fk">k</span><sub>j</sub>　　　　α<sub>i·</sub> = softmax( e<sub>i·</sub> )　　　　输出<sub>i</sub> = Σ<sub>j</sub> α<sub>ij</sub> <span class="fv">v</span><sub>j</sub>
+  </div>
+  <div class="answer" style="margin-top:12px">
+    <div class="big" style="font-size:16.5px">关键只有一句话：<b>打分的式子里没有 v，内容的式子里没有 k。</b></div>
+    <p style="margin-bottom:0">
+    · W<sub>K</sub> 收到的梯度，只经由「分配比例 α」回传；<br>
+    · W<sub>V</sub> 收到的梯度，只经由「被加权的内容」回传；<br>
+    · 两者是<b>互不相交的参数集合</b>，各练各的，不必在同一组数字上妥协。</p>
+  </div>
+  <p>所以「标签」可以尽情往<b>容易区分</b>的方向长（方向更独特、模长更大），而「内容」完全不必陪着一起变形——因为它<b>根本不在 key 里</b>，它在另一批数字 v 里。这就是「一个词派出两个代表」的全部技术含义。</p>
+
+  <h5 style="margin:22px 0 4px;font-size:15.5px">③ 为什么「把标签做得夸张」是安全的？靠 softmax 的两个性质</h5>
+  <p>设分数向量 e ＝ (e<sub>1</sub>, …, e<sub>T</sub>)，α ＝ softmax(e)。它有两个性质：</p>
+  <div class="grid2" style="margin:14px 0">
+    <div class="kv"><b>平移不变</b><span>e 全体加上同一个常数，α <b>完全不变</b>。所以「分数的绝对大小」无关紧要，起作用的只有<b>相对高低</b>。</span></div>
+    <div class="kv"><b>缩放只改「锐度」</b><span>e 全体乘以 c＞0：c 大 → α 更尖（趋近 one-hot）；c 小 → α 更平（趋近均匀分布）。所以 key 的<b>模长</b>只决定「注意力有多果断」，key 的<b>方向</b>才决定「看谁」。</span></div>
+  </div>
+  <p>第二条就是「醒目」的数学含义：一个词的 key 越长、与 query 越对齐，它在 softmax 里越有话语权。<mark>而这个「夸张」的代价全部由 softmax 承担，一步也走不到 v 那边去。</mark>想要更果断？把 key 调醒目。想要内容不变形？它本来就没动过。</p>
+  <p class="muted" style="font-size:13px">顺带把 <code>÷√d<sub>k</sub></code> 也解释干净了：key 的模长和维度都会放大分数，从而把 softmax 推进饱和区（输出几乎 one-hot，梯度≈0，学不动）。除以 <code>√d<sub>k</sub></code> 就是把<b>锐度</b>这个旋钮校准到合适档位——它调节的<b>仍然是分配，不是内容</b>。</p>
+
+  <h5 style="margin:22px 0 4px;font-size:15.5px">④ 白拿的好处：度量是「学出来的」，而且不对称</h5>
+  <div class="formula" style="line-height:2.6">
+    e<sub>ij</sub> = <span class="fq">q</span><sub>i</sub> · <span class="fk">k</span><sub>j</sub> = ( <span class="fk">W<sub>Q</sub></span>x<sub>i</sub> )<sup>T</sup>( <span class="fk">W<sub>K</sub></span>x<sub>j</sub> ) = x<sub>i</sub><sup>T</sup> ( <span class="fk">W<sub>Q</sub><sup>T</sup>W<sub>K</sub></span> ) x<sub>j</sub>
+  </div>
+  <p>括号里是一个完整的、<b>学出来的相似度矩阵</b>。它一般不<b>对称</b>——「A 觉得 B 像自己」和「B 觉得 A 像自己」可以是两个不同的数。而 Bahdanau 的加法式把两边投到同一空间后相加，隐含了「用同一把尺子量两边」的对称感；拆成 W<sub>Q</sub> 与 W<sub>K</sub> 之后，<b>提问方和被问方各自有了独立的投影</b>。</p>
+
+  <h5 style="margin:22px 0 4px;font-size:15.5px">⑤ 那这些式子怎么就变成了矩阵？</h5>
+  <p>矩阵不是新的数学，它只是把「每个词、每一对」的循环写法换成<b>批量记账</b>：</p>
+  <div class="tblwrap" style="margin:14px 0">
+    <table class="tbl flat">
+      <thead><tr><th>写法</th><th>形状</th><th>语义角色</th></tr></thead>
+      <tbody>
+        <tr><td>Q ＝ X W<sub>Q</sub></td><td>(T′×d)·(d×d<sub>k</sub>) → T′×d<sub>k</sub></td><td>每个词派出一张「我要找什么」的纸条</td></tr>
+        <tr><td>K ＝ X W<sub>K</sub></td><td>(T×d)·(d×d<sub>k</sub>) → T×d<sub>k</sub></td><td>每个词挂上一块「我是什么」的标签</td></tr>
+        <tr><td>V ＝ X W<sub>V</sub></td><td>(T×d)·(d×d<sub>v</sub>) → T×d<sub>v</sub></td><td>每个词备好一份「我有什么」的内容</td></tr>
+        <tr><td>QK<sup>T</sup></td><td>(T′×d<sub>k</sub>)(d<sub>k</sub>×T) → <b>T′×T</b></td><td>两两打分，一次得到完整的<b>检索表</b>（就是那张对齐热图）</td></tr>
+        <tr><td>softmax( · /√d<sub>k</sub> )</td><td>T′×T，每行和为 1</td><td>每个查询词的一份<b>分配方案</b></td></tr>
+        <tr><td>A V</td><td>(T′×T)(T×d<sub>v</sub>) → <b>T′×d<sub>v</sub></b></td><td>按方案把内容取回来，形状和输入一模一样</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>所以 <code>Attention(Q,K,V) ＝ softmax(QK<sup>T</sup>/√d<sub>k</sub>)·V</code> 可以读成一句话：<b>左边那一项是「检索表」，右边的 V 是「内容表」，中间那个乘法把它们组合起来。</b></p>
+  <div class="quote">
+    <b>最后强调一个容易搞反的因果：</b>把 K 和 V 分成两个矩阵，<b>不代表矩阵写法本身带来了分工</b>。
+    分工来自 <b>W<sub>K</sub> 和 W<sub>V</sub> 是两套参数</b>——这件事在「改动 ②」就已经发生了；写成矩阵乘法换来的是<b>并行和整洁</b>。
+    换句话说：<mark>解耦靠的是参数分开，并行靠的是矩阵记账，两件事不要混为一谈。</mark>
+  </div>
+
+  <h4 style="margin-top:30px">亲手拖一拖：拆开之后，两个旋钮互不干扰</h4>
+  <div class="demo" id="kvDemo">
+    <div class="demo-head">
+      <span class="demo-title">演示 10 · 「标签的醒目度」和「内容的完整度」能不能分开调？</span>
+      <div class="demo-ctl"><button class="btn primary" id="kvMode">切换到：共用一个向量（Bahdanau 模式）</button></div>
+    </div>
+    <div class="stage">
+      <p class="muted" style="font-size:12.5px;margin:0 0 14px">
+        场景：查询词是「它」（q 指向「水果类」），源词里最主要的是<b>「苹果」</b>，另外两个干扰词「掉」「熟」的分数固定为 −0.40、−0.20 并一起参与 softmax。
+        我们要同时做到两件事：让「苹果」的标签<b>足够醒目</b>（被检索到），又不许它的内容被扭曲（被取走时要<b>原汁原味</b>）。
+      </p>
+      <div class="kvctl">
+        <div class="slider"><span>λ<sub>k</sub>：标签醒目度</span><input type="range" id="kvLk" min="0.5" max="2.5" step="0.05" value="1"><span class="mono" id="kvLkV">1.00×</span></div>
+        <div class="slider" id="kvLvWrap"><span>λ<sub>v</sub>：内容完整度</span><input type="range" id="kvLv" min="0.5" max="2.5" step="0.05" value="1"><span class="mono" id="kvLvV">1.00×</span></div>
+      </div>
+      <table class="kvtbl">
+        <thead><tr><th>你正在动哪个旋钮</th><th>「苹果」的分数 e</th><th>「它」分给苹果的 α</th><th>苹果能提供的内容 |v|</th><th>结果</th></tr></thead>
+        <tbody>
+          <tr><td>λ<sub>k</sub>（标签醒目度）</td><td class="mono" id="kvE1">–</td><td class="mono" id="kvA1">–</td><td class="mono" id="kvV1">–</td><td id="kvR1"></td></tr>
+          <tr id="kvRow2"><td>λ<sub>v</sub>（内容完整度）</td><td class="mono" id="kvE2">–</td><td class="mono" id="kvA2">–</td><td class="mono" id="kvV2">–</td><td id="kvR2"></td></tr>
+        </tbody>
+      </table>
+      <div class="readout" id="kvMsg" style="min-height:64px">–</div>
+    </div>
+  </div>
+
   <h3>4.3 亲手算一遍：一个代词怎么找到它的先行词</h3>
   <p>看这句话：<strong>「苹果 / 掉 / 在 / 地上 / 因为 / 它 / 熟 / 了」</strong>。读到「它」的时候，这个 query 应该强烈地指向「苹果」。
   下面这个演示里，我们故意把每个词的 q、k、v 都设成<strong>二维向量</strong>——这样它们就能被画成箭头，你能真正「看见」点积在做什么。</p>
 
   <div class="demo" id="qkvDemo">
     <div class="demo-head">
-      <span class="demo-title">演示 10 · Q·K → softmax → ×V</span>
+      <span class="demo-title">演示 11 · Q·K → softmax → ×V</span>
       <div class="demo-ctl">
         <div class="slider"><span>温度</span><input type="range" id="qkvTemp" min="0.3" max="2" step="0.05" value="1"><span id="qkvTempV" class="mono">1.00×</span></div>
         <button class="btn" id="qkvReset">重置</button>
@@ -1172,7 +1271,7 @@ footer a{color:#a5b4fc}
 
   <div class="demo" id="headDemo">
     <div class="demo-head">
-      <span class="demo-title">演示 11 · 三个头，三种注意力模式</span>
+      <span class="demo-title">演示 12 · 三个头，三种注意力模式</span>
       <div class="demo-ctl">
         <button class="btn on" data-head="0">头 1 · 指代</button>
         <button class="btn" data-head="1">头 2 · 邻近</button>
@@ -2333,7 +2432,7 @@ function ctxOf(p){
 })();
 
 /* ============================================================
-   演示 10 · Q / K / V 现场计算
+   演示 11 · Q / K / V 现场计算
    ============================================================ */
 (function(){
   var tokBox=$('#qkvToks'), scoreBox=$('#qkvScores'), msg=$('#qkvMsg'),
@@ -2515,7 +2614,57 @@ function ctxOf(p){
 })();
 
 /* ============================================================
-   演示 11 · 多头注意力
+   演示 10 · 拆开之后，标签与内容互不干扰
+   ============================================================ */
+(function(){
+  var wrap=$('#kvDemo'); if(!wrap) return;
+  var lk=$('#kvLk'), lv=$('#kvLv'), msg=$('#kvMsg'), btn=$('#kvMode');
+  var E2=-0.40, E3=-0.20;          /* 干扰词「掉」「熟」的分数，固定 */
+  var merged=false;
+  var s0=Math.exp(E2)+Math.exp(E3);
+  function alpha(e1){ return Math.exp(e1)/(Math.exp(e1)+s0); }
+  function f(x){ return (x<0?'−':'')+Math.abs(x).toFixed(2); }
+  function render(){
+    var K=parseFloat(lk.value), V=merged?K:parseFloat(lv.value);
+    var e1=0.9*K, al=alpha(e1), vn=V, taken=al*vn;
+    $('#kvLkV').textContent=K.toFixed(2)+'×';
+    $('#kvLvV').textContent=V.toFixed(2)+'×';
+    $('#kvE1').textContent=f(e1);
+    $('#kvA1').textContent=al.toFixed(3);
+    $('#kvV1').textContent=vn.toFixed(2);
+    $('#kvE2').textContent=f(e1);
+    $('#kvA2').textContent=al.toFixed(3);
+    $('#kvV2').textContent=vn.toFixed(2);
+    if(merged){
+      $('#kvR1').innerHTML='<b>三个读数一起变</b>：分数↑、注意力↑、内容也被一起放大';
+      msg.innerHTML='现在是 <b>Bahdanau 的模式</b>：只有<b>一个</b>向量 h<sub>j</sub>，它既当靶子、又当内容，所以只有一个旋钮。'
+        +'你一动，三个读数只能一起动：<b>想让标签更醒目，内容就被一起放大；想保住内容原样，标签就动不了</b>。'
+        +'当前 λ＝'+K.toFixed(2)+'×：分数 '+f(e1)+'、注意力 α＝'+al.toFixed(3)+'、内容 |v|＝'+vn.toFixed(2)
+        +'，最终被取走 α·|v|＝'+taken.toFixed(2)+'。<mark>这就是「只能折中」的具体样子。</mark>';
+    } else {
+      $('#kvR1').innerHTML='分数 <b>↑</b>、注意力 <b>↑</b>，而 |v| <b>一动不动</b>';
+      $('#kvR2').innerHTML='|v| <b>↑</b>，而分数与 α <b>一动不动</b>';
+      msg.innerHTML='拆开的模式：<b>两个需求各自有一把手。</b>'
+        +'现在 λ<sub>k</sub>＝'+K.toFixed(2)+'×、λ<sub>v</sub>＝'+V.toFixed(2)+'×，于是分数 e＝'+f(e1)+'、注意力 α＝'+al.toFixed(3)
+        +'、内容 |v|＝'+vn.toFixed(2)+'。'
+        +'<br>试着只拖左边：分数和 α 会一路从 0.51 走到 0.86，而 <b>|v| 始终停在 '+V.toFixed(2)+'，一个数都没被带偏</b>；'
+        +'再试着只拖右边：|v| 变，α <b>纹丝不动</b>。'
+        +'<br><b>为什么能这样？</b>因为打分只用到 k、取内容只用到 v，而 k 和 v 是由两套不同参数（W<sub>K</sub>、W<sub>V</sub>）算出来的——'
+        +'它们不需要在同一组数字上互相让步。';
+    }
+    $('#kvLvWrap').style.opacity=merged?'.35':'1';
+    lv.disabled=merged;
+    $('#kvRow2').style.opacity=merged?'.35':'1';
+    btn.textContent=merged?'切换回：拆成 K 和 V':'切换到：共用一个向量（Bahdanau 模式）';
+  }
+  lk.addEventListener('input',function(){ if(merged) lv.value=lk.value; render(); });
+  lv.addEventListener('input',function(){ if(!merged) render(); });
+  btn.addEventListener('click',function(){ merged=!merged; if(merged) lv.value=lk.value; render(); });
+  render();
+})();
+
+/* ============================================================
+   演示 12 · 多头注意力
    ============================================================ */
 (function(){
   var host=$('#headHeat'), msg=$('#headMsg'); if(!host) return;
