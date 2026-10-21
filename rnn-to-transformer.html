@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234f46e5'/%3E%3Cpath d='M16 40h32M16 24h32M24 16v32M40 16v32' stroke='white' stroke-width='4' stroke-linecap='round' opacity='.9'/%3E%3C/svg%3E">
 <style>
 *,*::before,*::after{box-sizing:border-box}
-html{scroll-behavior:smooth;scroll-padding-top:24px}
+html{scroll-behavior:smooth;scroll-padding-top:24px;background:var(--bg)}
 :root{
   --bg:#f4f5fa; --card:#fff;
   --ink:#171a2b; --ink2:#4b5168; --ink3:#7c839a;
@@ -28,14 +28,16 @@ html{scroll-behavior:smooth;scroll-padding-top:24px}
 }
 html{ -webkit-text-size-adjust:100%; }
 body{
-  margin:0;color:var(--ink);background:var(--bg);font-family:var(--sans);
+  margin:0;color:var(--ink);background:transparent;font-family:var(--sans);
   font-size:16.5px;line-height:1.9;letter-spacing:.005em;
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+body::before{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
   background-image:
     radial-gradient(1100px 620px at 88% -12%, #e9e5ff 0%, rgba(233,229,255,0) 62%),
     radial-gradient(900px 520px at -12% 8%, #e2f5ff 0%, rgba(226,245,255,0) 55%),
     radial-gradient(700px 500px at 50% 110%, #fff3e2 0%, rgba(255,243,226,0) 60%);
-  background-attachment:fixed;
 }
 img,svg{max-width:100%}
 a{color:var(--indigo);text-decoration:none;border-bottom:1px solid rgba(79,70,229,.25)}
@@ -44,15 +46,15 @@ button{font:inherit;color:inherit}
 ::selection{background:#ddd9ff;color:#1c1747}
 
 /* ---------- 阅读进度 ---------- */
-#progress{position:fixed;top:0;left:0;height:3px;width:0;z-index:100;
+#progress{position:fixed;top:0;left:0;height:3px;width:100%;z-index:100;
   background:linear-gradient(90deg,var(--indigo),var(--violet),var(--amber-b));
-  box-shadow:0 0 12px rgba(124,58,237,.45);transition:width .08s linear}
+  box-shadow:0 0 12px rgba(124,58,237,.45);transform:scaleX(0);transform-origin:0 50%;will-change:transform}
 
 /* ---------- 侧栏 ---------- */
 .sidebar{
   position:fixed;inset:0 auto 0 0;width:var(--sidebar);z-index:50;
   padding:30px 20px 40px;overflow-y:auto;
-  background:rgba(255,255,255,.74);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  background:rgba(255,255,255,.94);
   border-right:1px solid rgba(226,229,239,.9);
 }
 .brand{display:flex;align-items:center;gap:10px;margin:0 6px 6px;font-weight:800;font-size:13.5px;letter-spacing:-.005em;white-space:nowrap}
@@ -278,7 +280,7 @@ details p{margin:0;font-size:14px;color:var(--ink2)}
 /* ---------- 响应式 ---------- */
 @media (max-width:1100px){
   .sidebar{position:static;width:auto;inset:auto;padding:16px 22px 10px;border-right:0;border-bottom:1px solid var(--line);
-    background:rgba(255,255,255,.86);backdrop-filter:blur(12px)}
+    background:rgba(255,255,255,.96)}
   .brand{margin-bottom:10px}
   .brand-sub{display:none}
   .toc{flex-direction:row;overflow-x:auto;gap:4px;padding-bottom:8px;scrollbar-width:thin}
@@ -368,11 +370,11 @@ details p{margin:0;font-size:14px;color:var(--ink2)}
 <header class="hero">
   <div class="eyebrow">A visual history of attention · 1986 — 2017</div>
   <h1>从 RNN 到 Transformer<br><span class="thin">注意力如何一步步成为主角</span></h1>
-  <p class="lede">把一句话压进一个固定向量，为什么不够？让解码器每一步回头看一眼，为什么有效？既然“看一眼”这么好用，为什么还要把 RNN 整个拿掉？这篇讲义沿着三个真实的失败与突破，把 <b>RNN → Bahdanau 注意力 → Transformer</b> 的每一步推导、每一处动机都摊开来讲。</p>
+  <p class="lede">把一句话压进一个固定向量，为什么不够？让解码器每一步回头看一眼，为什么有效？既然“看一眼”这么好用，为什么还要把 RNN 整个拿掉？这篇讲义沿着几次真实的失败与突破，把 <b>RNN → Bahdanau 注意力 → Luong 点积注意力 → Transformer</b> 的每一步推导、每一处动机都摊开来讲。</p>
   <div class="meta">
     <span class="chip"><span class="dot"></span>阅读约 <b>45 分钟</b></span>
     <span class="chip v"><span class="dot"></span><b>3</b> 个阶段</span>
-    <span class="chip a"><span class="dot"></span><b>11</b> 幅图解</span>
+    <span class="chip a"><span class="dot"></span><b>14</b> 幅图解</span>
     <span class="chip"><span class="dot"></span>公式 + 手算 + 交互</span>
   </div>
 
@@ -391,8 +393,8 @@ details p{margin:0;font-size:14px;color:var(--ink2)}
     <div class="chapter-num">00</div>
     <div>
       <div class="kicker">导读 · The through-line</div>
-      <h2>一条主线：压缩 → 检索 → 只保留检索</h2>
-      <p class="dek">这三个模型不是三套互不相干的技巧，而是同一条问题链上的三次回答。先记住这条链，后面的公式就不会散。</p>
+      <h2>一条主线：压缩 → 检索 → 点积化 → 只保留检索</h2>
+      <p class="dek">这些模型不是几套互不相干的技巧，而是同一条问题链上的连续回答。先记住这条链，后面的公式就不会散。</p>
     </div>
   </div>
 
@@ -402,17 +404,19 @@ details p{margin:0;font-size:14px;color:var(--ink2)}
 
   <p>2015 年的 Bahdanau 注意力说：别压了。编码器把每个位置的表示都留着，解码器每写一个词，就拿着当前状态去和原文每个位置打分，按权重把需要的信息取回来。信息不再经过一个狭窄的瓶口，而是可以<b>按需检索</b>。</p>
 
+  <p>2015 年的 Luong 注意力接着往前走了一步：既然核心是“打分—加权—取回”，那 Bahdanau 为每个 <span class="m">(t,j)</span> 跑一次小 MLP 的打分方式能不能更便宜？Luong 系统比较了 <b>global / local</b> 两种范围和 <b>dot / general / concat</b> 三种打分函数，并证明点积在很多情况下效果相当，却可以直接写成矩阵乘法；再加上 input feeding，注意力开始从“一个有效的附件”变成“一个可规模化计算的核心模块”。</p>
+
   <p>2017 年的 Transformer 再往前一步：既然“打分—加权—取回”这么好用，为什么还要用 RNN 来产生“当前状态”？让句子里的每个词自己发问、自己回答，把所有位置一次性两两比较——于是<b>唯一的主干就只剩注意力</b>。</p>
 
   <div class="grid3">
     <div class="card"><div class="k">Stage 1 · 1986–2014</div><h4>RNN：顺序地记</h4><p>同一个单元沿时间复用，隐藏状态是记忆。表达能力强，但必须一步一步算，长距离信息会被反复覆盖。</p></div>
-    <div class="card accent"><div class="k">Stage 2 · 2014/15</div><h4>Attention：按需地取</h4><p>保留每个源位置的表示，解码时动态打分、加权求和。瓶颈被打开，还能看见对齐。</p></div>
+    <div class="card accent"><div class="k">Stage 2 · 2014/15</div><h4>Attention：按需地取，再把打分变便宜</h4><p>Bahdanau 保留每个源位置的表示，解码时动态打分、加权求和；Luong 用点积替代小 MLP，让注意力可以写成矩阵乘法。</p></div>
     <div class="card"><div class="k">Stage 3 · 2017</div><h4>Transformer：并行地查</h4><p>把“问—配—取”拆成 Q/K/V，用矩阵乘法一次算完所有位置，彻底移除循环。</p></div>
   </div>
 
   <div class="callout hist">
     <div class="ct">先把时间线校准</div>
-    <p>Bahdanau、Cho、Bengio 的论文 <i>Neural Machine Translation by Jointly Learning to Align and Translate</i> 于 <b>2014 年 9 月</b>挂上 arXiv，<b>2015 年</b>在 ICLR 作为 oral 发表，所以常被称作“2015 年的注意力机制”。Luong 等人的点积/乘性注意力同样发表于 2015 年。Transformer 的论文 <i>Attention Is All You Need</i> 于 <b>2017 年 6 月</b>公开。本文按“2015 注意力 → 2017 Transformer”叙述，但会把 2014 年的 seq2seq 作为必要的起点。</p>
+    <p>Bahdanau、Cho、Bengio 的论文 <i>Neural Machine Translation by Jointly Learning to Align and Translate</i> 于 <b>2014 年 9 月</b>挂上 arXiv，<b>2015 年</b>在 ICLR 作为 oral 发表，所以常被称作“2015 年的注意力机制”。Luong、Pham、Manning 的 <i>Effective Approaches to Attention-based Neural Machine Translation</i> 也在 2015 年发表：它没有推翻 Bahdanau，而是系统比较 global / local 与 dot / general / concat，用点积把注意力推向矩阵乘法。Transformer 的论文 <i>Attention Is All You Need</i> 于 <b>2017 年 6 月</b>公开。本文按“2015 注意力 → 2017 Transformer”叙述，但会把 2014 年的 seq2seq 作为必要的起点。</p>
   </div>
 
   <div class="callout idea">
@@ -753,6 +757,115 @@ details p{margin:0;font-size:14px;color:var(--ink2)}
 
   <h3 id="bahdanau">2.2 第二步：打分、归一化、加权求和</h3>
 
+  <h4>先把 h<sub>j</sub> 看清楚：一个位置，两份上下文</h4>
+
+  <p>这里最容易误会的一点是：<span class="m">h</span><sub>j</sub> <b>不是第 j 个词的词向量</b>。它是双向 RNN 在位置 <span class="m">j</span> 算出来的两份隐藏状态拼接：正向状态 <span class="m">→h</span><sub>j</sub> 看过“当前位置及左边”，反向状态 <span class="m">←h</span><sub>j</sub> 看过“当前位置及右边”。所以 <span class="m">h</span><sub>j</sub> 回答的是：<b>“以第 j 个词为中心，它周围这一小段上下文合起来是什么？”</b></p>
+
+  <figure class="fig">
+    <div class="fig-frame">
+      <svg viewBox="0 0 860 420" role="img" aria-label="h_j 由双向 RNN 的正向和反向隐藏状态拼接而成">
+        <defs>
+          <marker id="arrFwd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="#818cf8"/>
+          </marker>
+          <marker id="arrBwd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="#14b8a6"/>
+          </marker>
+        </defs>
+
+        <text x="20" y="25" font-size="12" font-weight="700" fill="#4f46e5">正向 RNN：从左往右读</text>
+        <text x="460" y="273" font-size="11.5" font-weight="700" fill="#0f766e">反向 RNN</text>
+        <text x="500" y="28" font-size="12" font-weight="700" fill="#334155">同一位置的两份状态，拼接成 h_j</text>
+
+        <g>
+          <rect x="30" y="60" width="110" height="56" rx="10" fill="#eef0ff" stroke="#c7c9f5"/>
+          <text x="85" y="87" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#312e81">→h<tspan font-size="9" dy="3">1</tspan></text>
+          <text x="85" y="103" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#6b7280">n 维</text>
+
+          <rect x="180" y="60" width="110" height="56" rx="10" fill="#eef0ff" stroke="#4f46e5" stroke-width="2.2"/>
+          <text x="235" y="87" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#312e81">→h<tspan font-size="9" dy="3">2</tspan></text>
+          <text x="235" y="103" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#6b7280">n 维</text>
+
+          <rect x="330" y="60" width="110" height="56" rx="10" fill="#eef0ff" stroke="#c7c9f5"/>
+          <text x="385" y="87" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#312e81">→h<tspan font-size="9" dy="3">3</tspan></text>
+          <text x="385" y="103" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#6b7280">n 维</text>
+        </g>
+
+        <line x1="140" y1="88" x2="177" y2="88" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrFwd)"/>
+        <line x1="290" y1="88" x2="327" y2="88" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrFwd)"/>
+
+        <g>
+          <rect x="30" y="150" width="110" height="40" rx="20" fill="#fff" stroke="#d7d9ec"/>
+          <text x="85" y="176" text-anchor="middle" font-family="ui-monospace,monospace" font-size="12" fill="#475569">The</text>
+          <rect x="180" y="150" width="110" height="40" rx="20" fill="#fff7ed" stroke="#fed7aa"/>
+          <text x="235" y="176" text-anchor="middle" font-family="ui-monospace,monospace" font-size="12" font-weight="700" fill="#9a3412">cat</text>
+          <rect x="330" y="150" width="110" height="40" rx="20" fill="#fff" stroke="#d7d9ec"/>
+          <text x="385" y="176" text-anchor="middle" font-family="ui-monospace,monospace" font-size="12" fill="#475569">sat</text>
+          <text x="460" y="174" font-size="10.5" fill="#7c839a">源句</text>
+        </g>
+
+        <g>
+          <line x1="85" y1="150" x2="85" y2="119" stroke="#818cf8" stroke-width="1.4" marker-end="url(#arrFwd)"/>
+          <line x1="235" y1="150" x2="235" y2="119" stroke="#4f46e5" stroke-width="1.6" marker-end="url(#arrFwd)"/>
+          <line x1="385" y1="150" x2="385" y2="119" stroke="#818cf8" stroke-width="1.4" marker-end="url(#arrFwd)"/>
+          <line x1="85" y1="190" x2="85" y2="242" stroke="#14b8a6" stroke-width="1.4" marker-end="url(#arrBwd)"/>
+          <line x1="235" y1="190" x2="235" y2="242" stroke="#14b8a6" stroke-width="1.6" marker-end="url(#arrBwd)"/>
+          <line x1="385" y1="190" x2="385" y2="242" stroke="#14b8a6" stroke-width="1.4" marker-end="url(#arrBwd)"/>
+        </g>
+
+        <g>
+          <rect x="30" y="245" width="110" height="56" rx="10" fill="#e7fbf8" stroke="#b7ece4"/>
+          <text x="85" y="272" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#115e59">←h<tspan font-size="9" dy="3">1</tspan></text>
+          <text x="85" y="288" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#6b7280">n 维</text>
+
+          <rect x="180" y="245" width="110" height="56" rx="10" fill="#e7fbf8" stroke="#14b8a6" stroke-width="2.2"/>
+          <text x="235" y="272" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#115e59">←h<tspan font-size="9" dy="3">2</tspan></text>
+          <text x="235" y="288" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#6b7280">n 维</text>
+
+          <rect x="330" y="245" width="110" height="56" rx="10" fill="#e7fbf8" stroke="#b7ece4"/>
+          <text x="385" y="272" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#115e59">←h<tspan font-size="9" dy="3">3</tspan></text>
+          <text x="385" y="288" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#6b7280">n 维</text>
+        </g>
+
+        <line x1="330" y1="273" x2="293" y2="273" stroke="#14b8a6" stroke-width="1.8" marker-end="url(#arrBwd)"/>
+        <line x1="180" y1="273" x2="143" y2="273" stroke="#14b8a6" stroke-width="1.8" marker-end="url(#arrBwd)"/>
+
+        <g>
+          <rect x="500" y="75" width="115" height="62" rx="10" fill="#eef0ff" stroke="#4f46e5" stroke-width="1.8"/>
+          <text x="557.5" y="104" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#312e81">→h<tspan font-size="9" dy="3">2</tspan></text>
+          <text x="557.5" y="122" text-anchor="middle" font-size="9.5" fill="#6b7280">看过 The + cat</text>
+
+          <rect x="500" y="185" width="115" height="62" rx="10" fill="#e7fbf8" stroke="#14b8a6" stroke-width="1.8"/>
+          <text x="557.5" y="214" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#115e59">←h<tspan font-size="9" dy="3">2</tspan></text>
+          <text x="557.5" y="232" text-anchor="middle" font-size="9.5" fill="#6b7280">看过 cat + sat</text>
+        </g>
+
+        <path d="M615 106 C628 106 628 133 646 137" fill="none" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrFwd)"/>
+        <path d="M615 216 C628 216 628 189 646 185" fill="none" stroke="#14b8a6" stroke-width="1.8" marker-end="url(#arrBwd)"/>
+
+        <g>
+          <rect x="650" y="105" width="55" height="112" rx="10" fill="#fff" stroke="#d6d9ee"/>
+          <text x="677.5" y="166" text-anchor="middle" font-family="ui-monospace,monospace" font-size="16" font-weight="700" fill="#312e81">[ ; ]</text>
+          <text x="677.5" y="184" text-anchor="middle" font-size="9.5" fill="#6b7280">拼接</text>
+        </g>
+
+        <line x1="705" y1="161" x2="731" y2="161" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrFwd)"/>
+
+        <g>
+          <rect x="738" y="120" width="102" height="82" rx="12" fill="#fff7ed" stroke="#fed7aa"/>
+          <text x="789" y="153" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="19" font-weight="700" fill="#9a3412">h<tspan font-size="10" dy="4">2</tspan></text>
+          <text x="789" y="174" text-anchor="middle" font-size="9.5" fill="#9a6b45">2n 维摘要</text>
+          <text x="789" y="190" text-anchor="middle" font-size="9.5" fill="#9a6b45">[→h₂ ; ←h₂]</text>
+        </g>
+
+        <text x="27" y="335" font-size="10.5" fill="#6b7280">→h₂：读到第 2 个词为止 → 包含 The 和 cat（左侧上下文 + 当前词）</text>
+        <text x="27" y="355" font-size="10.5" fill="#6b7280">←h₂：从第 2 个词往回读 → 包含 cat 和 sat（当前词 + 右侧上下文）</text>
+        <text x="430" y="408" text-anchor="middle" font-size="11.5" font-weight="700" fill="#475569">h_j 不是词向量，而是以第 j 个位置为中心、融合左右上下文的 2n 维摘要</text>
+      </svg>
+    </div>
+    <figcaption><b>h<sub>j</sub> 是怎么来的。</b>同一个输入位置 <span class="m">j</span> 同时送入正向和反向 RNN：<span class="m">→h</span><sub>j</sub> 汇集左侧上下文，<span class="m">←h</span><sub>j</sub> 汇集右侧上下文；两者拼成 <span class="m">h</span><sub>j</sub> ∈ ℝ<sup>2n</sup>。所以每个源位置都有自己的 <span class="m">h</span><sub>j</sub>，而不是整句只有一个向量。</figcaption>
+  </figure>
+
   <p>解码器在生成第 <span class="m">t</span> 个词之前，手上有上一时刻的状态 <span class="m">s</span><sub>t−1</sub>。它想回答一个问题：<b>“以我现在的状态，原文的每个位置和我有多匹配？”</b> 对每个源位置 <span class="m">j</span>，先算一个未归一化的分数：</p>
 
   <div class="eq">
@@ -760,7 +873,218 @@ details p{margin:0;font-size:14px;color:var(--ink2)}
     <div class="tag">(2.2)</div>
   </div>
 
+  <p><b>先把公式 2.2 读成一句中文：</b>把解码器上一步的状态 <span class="m">s</span><sub>t−1</sub> 和编码器第 <span class="m">j</span> 个位置的注解 <span class="m">h</span><sub>j</sub>，分别用两组可学习矩阵投影到同一个 <span class="m">n</span> 维空间；逐元素相加后过 <span class="m">tanh</span>，最后用向量 <span class="m">v</span><sub>a</sub> 把这 <span class="m">n</span> 个数汇总成<b>一个分数</b>。这个分数就是“第 <span class="m">t</span> 步解码时，源位置 <span class="m">j</span> 有多值得看”。</p>
+
+  <figure class="fig">
+    <div class="fig-frame">
+      <svg viewBox="0 0 760 405" role="img" aria-label="公式 2.2 的张量形状和计算流程">
+        <defs>
+          <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="#818cf8"/>
+          </marker>
+        </defs>
+
+        <text x="20" y="24" font-size="12" font-weight="700" fill="#6366f1">解码器侧：我在找什么</text>
+        <text x="20" y="218" font-size="12" font-weight="700" fill="#0f766e">编码器侧：第 j 个位置有什么</text>
+
+        <g>
+          <rect x="20" y="42" width="125" height="72" rx="12" fill="#eef0ff" stroke="#c7c9f5"/>
+          <text x="82.5" y="71" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="21" font-weight="700" fill="#312e81">s<tspan font-size="11" dy="4">t−1</tspan></text>
+          <text x="82.5" y="91" text-anchor="middle" font-size="10.5" fill="#5b5f86">上一步解码状态</text>
+          <text x="82.5" y="105" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#7c83a5">n 维</text>
+        </g>
+
+        <line x1="145" y1="78" x2="161" y2="78" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrA)"/>
+
+        <g>
+          <rect x="165" y="42" width="95" height="72" rx="12" fill="#fff" stroke="#d6d9ee"/>
+          <text x="212.5" y="71" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="20" font-weight="700" fill="#312e81">W<tspan font-size="11" dy="4">a</tspan></text>
+          <text x="212.5" y="91" text-anchor="middle" font-size="10.5" fill="#5b5f86">解码侧投影</text>
+          <text x="212.5" y="105" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#7c83a5">n × n</text>
+        </g>
+
+        <line x1="260" y1="78" x2="276" y2="78" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrA)"/>
+
+        <g>
+          <rect x="280" y="42" width="130" height="72" rx="12" fill="#f8f7ff" stroke="#dcd8ff"/>
+          <text x="345" y="71" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#312e81">W<tspan font-size="9" dy="4">a</tspan><tspan dy="-4">s</tspan><tspan font-size="9" dy="4">t−1</tspan></text>
+          <text x="345" y="91" text-anchor="middle" font-size="10.5" fill="#5b5f86">投影后的 query</text>
+          <text x="345" y="105" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#7c83a5">n 维</text>
+        </g>
+
+        <g>
+          <rect x="20" y="232" width="125" height="72" rx="12" fill="#e7fbf8" stroke="#b7ece4"/>
+          <text x="82.5" y="261" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="21" font-weight="700" fill="#115e59">h<tspan font-size="11" dy="4">j</tspan></text>
+          <text x="82.5" y="281" text-anchor="middle" font-size="10.5" fill="#4f6b6b">第 j 个位置双向注解</text>
+          <text x="82.5" y="295" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#6b8585">2n 维</text>
+        </g>
+
+        <line x1="145" y1="268" x2="161" y2="268" stroke="#14b8a6" stroke-width="1.8" marker-end="url(#arrA)"/>
+
+        <g>
+          <rect x="165" y="232" width="95" height="72" rx="12" fill="#fff" stroke="#cde9e5"/>
+          <text x="212.5" y="261" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="20" font-weight="700" fill="#115e59">U<tspan font-size="11" dy="4">a</tspan></text>
+          <text x="212.5" y="281" text-anchor="middle" font-size="10.5" fill="#4f6b6b">编码侧投影</text>
+          <text x="212.5" y="295" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#6b8585">n × 2n</text>
+        </g>
+
+        <line x1="260" y1="268" x2="276" y2="268" stroke="#14b8a6" stroke-width="1.8" marker-end="url(#arrA)"/>
+
+        <g>
+          <rect x="280" y="232" width="130" height="72" rx="12" fill="#f4fdfb" stroke="#c9eee8"/>
+          <text x="345" y="261" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#115e59">U<tspan font-size="9" dy="4">a</tspan><tspan dy="-4">h</tspan><tspan font-size="9" dy="4">j</tspan></text>
+          <text x="345" y="281" text-anchor="middle" font-size="10.5" fill="#4f6b6b">投影后的 key / value</text>
+          <text x="345" y="295" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#6b8585">n 维</text>
+        </g>
+
+        <path d="M410 78 C420 78 420 132 426 150" fill="none" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrA)"/>
+        <path d="M410 268 C420 268 420 210 426 192" fill="none" stroke="#14b8a6" stroke-width="1.8" marker-end="url(#arrA)"/>
+
+        <circle cx="435" cy="171" r="23" fill="#fff" stroke="#818cf8" stroke-width="1.8"/>
+        <text x="435" y="179" text-anchor="middle" font-size="23" font-weight="700" fill="#4f46e5">+</text>
+
+        <line x1="458" y1="171" x2="469" y2="171" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrA)"/>
+
+        <g>
+          <rect x="471" y="134" width="78" height="74" rx="12" fill="#fff" stroke="#d6d9ee"/>
+          <text x="510" y="167" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" font-weight="700" fill="#312e81">tanh</text>
+          <text x="510" y="188" text-anchor="middle" font-size="10" fill="#6b7280">(−1, 1)</text>
+        </g>
+
+        <line x1="549" y1="171" x2="570" y2="171" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrA)"/>
+
+        <g>
+          <rect x="572" y="134" width="75" height="74" rx="12" fill="#fff" stroke="#d6d9ee"/>
+          <text x="609.5" y="167" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#312e81">v<tspan font-size="9" dy="4">a</tspan><tspan dy="-4">⊤</tspan></text>
+          <text x="609.5" y="188" text-anchor="middle" font-size="10" fill="#6b7280">1 × n</text>
+        </g>
+
+        <line x1="647" y1="171" x2="668" y2="171" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrA)"/>
+
+        <g>
+          <rect x="670" y="134" width="65" height="74" rx="12" fill="#fff7ed" stroke="#fed7aa"/>
+          <text x="702.5" y="167" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#9a3412">e<tspan font-size="9" dy="4">tj</tspan></text>
+          <text x="702.5" y="188" text-anchor="middle" font-size="10" fill="#9a6b45">标量</text>
+        </g>
+
+        <text x="380" y="355" text-anchor="middle" font-size="11.5" fill="#6b7280"><tspan font-weight="700" fill="#4f46e5">t</tspan> 决定“这一步想找什么”，<tspan font-weight="700" fill="#0f766e">j</tspan> 决定“现在在问原文的哪个位置”</text>
+        <text x="380" y="379" text-anchor="middle" font-size="11.5" fill="#6b7280"><tspan font-weight="700">W<tspan font-size="8" dy="2">a</tspan><tspan dy="-2">, U</tspan><tspan font-size="8" dy="2">a</tspan><tspan dy="-2">, v</tspan><tspan font-size="8" dy="2">a</tspan><tspan dy="-2"> 对所有 (t, j) 共享</tspan></text>
+      </svg>
+    </div>
+    <figcaption><b>公式 2.2 的拆解图。</b>两条支路先把不同维度的 <span class="m">s</span><sub>t−1</sub> 和 <span class="m">h</span><sub>j</sub> 投影到同一个 <span class="m">n</span> 维空间，逐元素相加后经过 <span class="m">tanh</span>，再由 <span class="m">v</span><sub>a</sub><sup>⊤</sup> 汇总成一个标量分数 <span class="m">e</span><sub>tj</sub>。</figcaption>
+  </figure>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>字符</th><th>怎么读</th><th>形状</th><th>在公式里做什么</th></tr></thead>
+      <tbody>
+        <tr><td><span class="m">t</span></td><td>解码时间步</td><td><span class="shape">索引</span></td><td>当前正在生成第 <span class="m">t</span> 个目标词。</td></tr>
+        <tr><td><span class="m">j</span></td><td>源位置索引</td><td><span class="shape">索引</span></td><td>正在和原文第 <span class="m">j</span> 个位置比较。</td></tr>
+        <tr><td><span class="m">n</span></td><td>隐藏维度</td><td><span class="shape">标量</span></td><td>打分空间的维度；不是某个具体位置。</td></tr>
+        <tr><td><span class="m">s</span><sub>t−1</sub></td><td>解码器上一步状态</td><td><span class="shape">n</span></td><td>“我此刻想表达什么”，也被看作 query。</td></tr>
+        <tr><td><span class="m">h</span><sub>j</sub></td><td>编码器第 j 个注解</td><td><span class="shape">2n</span></td><td>“原文第 j 个位置有什么”，双向状态拼接。</td></tr>
+        <tr><td><span class="m">W</span><sub>a</sub></td><td>解码侧投影矩阵</td><td><span class="shape">n×n</span></td><td>把 <span class="m">s</span><sub>t−1</sub> 投到共同的打分空间。</td></tr>
+        <tr><td><span class="m">U</span><sub>a</sub></td><td>编码侧投影矩阵</td><td><span class="shape">n×2n</span></td><td>把 <span class="m">h</span><sub>j</sub> 投到同一个打分空间。</td></tr>
+        <tr><td><span class="m">W</span><sub>a</sub><span class="m">s</span><sub>t−1</sub></td><td>投影后的解码状态</td><td><span class="shape">n</span></td><td>上支路的结果，表示“当前问题”的向量。</td></tr>
+        <tr><td><span class="m">U</span><sub>a</sub><span class="m">h</span><sub>j</sub></td><td>投影后的编码注解</td><td><span class="shape">n</span></td><td>下支路的结果，表示“当前位置内容”的向量。</td></tr>
+        <tr><td><span class="m">+</span></td><td>逐元素相加</td><td><span class="shape">n</span></td><td>把“问题”和“内容”放到同一个向量里融合。</td></tr>
+        <tr><td><span class="m">tanh</span></td><td>双曲正切</td><td><span class="shape">n</span></td><td>逐元素压缩到 (−1, 1)，引入非线性匹配。</td></tr>
+        <tr><td><span class="m">v</span><sub>a</sub></td><td>输出权重向量</td><td><span class="shape">n</span></td><td>学出一组权重，用来汇总 <span class="m">n</span> 个分量。</td></tr>
+        <tr><td><span class="m">v</span><sub>a</sub><sup>⊤</sup></td><td><span class="m">v</span><sub>a</sub> 的转置</td><td><span class="shape">1×n</span></td><td>与 <span class="m">tanh</span> 的输出做点积，压成一个数。</td></tr>
+        <tr><td><span class="m">e</span><sub>tj</sub></td><td>第 t 步对位置 j 的分数</td><td><span class="shape">标量</span></td><td>未归一化的对齐分数，可正可负；下一步再 softmax。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="tbl-note">把形状顺着读一遍：<span class="shape">n</span> 和 <span class="shape">2n</span> 进入两个投影后都变成 <span class="shape">n</span>；相加、<span class="m">tanh</span> 都不改变维度；最后 <span class="shape">1×n</span> 乘 <span class="shape">n×1</span>，所以输出必然是一个标量。</p>
+
   <p>这个 <span class="m">a</span>(·,·) 就是论文里的 <b>alignment model</b>（对齐模型）。它其实是一个只有一层隐层的小型前馈网络：两条支路分别把 <span class="m">s</span><sub>t−1</sub> 和 <span class="m">h</span><sub>j</sub> 线性变换到同一个 <span class="m">n</span> 维“打分空间”，逐元素相加，过 tanh，再用 <span class="m">v</span><sub>a</sub> 加权求和成一个标量。</p>
+
+  <h4>把公式 2.2 画成神经网络</h4>
+
+  <p>如果把公式里的每个运算看成一个网络层，它就是一个<b>单隐层前馈网络</b>：<span class="m">W</span><sub>a</sub> 和 <span class="m">U</span><sub>a</sub> 是两个并行的线性投影，结果相加后进入 <span class="m">tanh</span> 隐层，最后由 <span class="m">v</span><sub>a</sub><sup>⊤</sup> 输出一个标量。</p>
+
+  <figure class="fig">
+    <div class="fig-frame">
+      <svg viewBox="0 0 860 430" role="img" aria-label="公式 2.2 对应的单隐层前馈打分网络">
+        <defs>
+          <marker id="arrNet" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="#818cf8"/>
+          </marker>
+        </defs>
+
+        <text x="430" y="25" text-anchor="middle" font-size="12.5" font-weight="700" fill="#334155">公式 2.2 = 单隐层前馈打分网络 a(s, h)</text>
+        <text x="85" y="56" text-anchor="middle" font-size="10.5" font-weight="700" fill="#7c839a">输入</text>
+        <text x="202.5" y="56" text-anchor="middle" font-size="10.5" font-weight="700" fill="#7c839a">线性投影</text>
+        <text x="347.5" y="56" text-anchor="middle" font-size="10.5" font-weight="700" fill="#7c839a">相加</text>
+        <text x="492.5" y="56" text-anchor="middle" font-size="10.5" font-weight="700" fill="#7c839a">激活</text>
+        <text x="710" y="56" text-anchor="middle" font-size="10.5" font-weight="700" fill="#7c839a">输出</text>
+
+        <rect x="150" y="68" width="500" height="280" rx="18" fill="none" stroke="#c7c9f5" stroke-width="1.4" stroke-dasharray="6 5"/>
+        <text x="400" y="369" text-anchor="middle" font-size="10.5" fill="#6366f1">虚线框就是对齐模型 a(·,·)</text>
+
+        <g>
+          <rect x="25" y="90" width="120" height="64" rx="11" fill="#eef0ff" stroke="#c7c9f5"/>
+          <text x="85" y="119" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="19" font-weight="700" fill="#312e81">s<tspan font-size="10" dy="4">t−1</tspan></text>
+          <text x="85" y="139" text-anchor="middle" font-size="10" fill="#6b7280">n 维 · 当前问题</text>
+
+          <rect x="25" y="260" width="120" height="64" rx="11" fill="#e7fbf8" stroke="#b7ece4"/>
+          <text x="85" y="289" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="19" font-weight="700" fill="#115e59">h<tspan font-size="10" dy="4">j</tspan></text>
+          <text x="85" y="309" text-anchor="middle" font-size="10" fill="#6b7280">2n 维 · 候选内容</text>
+        </g>
+
+        <g>
+          <rect x="160" y="90" width="85" height="64" rx="11" fill="#fff" stroke="#d6d9ee"/>
+          <text x="202.5" y="119" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="18" font-weight="700" fill="#312e81">W<tspan font-size="10" dy="4">a</tspan></text>
+          <text x="202.5" y="139" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#6b7280">n × n</text>
+
+          <rect x="160" y="260" width="85" height="64" rx="11" fill="#fff" stroke="#cde9e5"/>
+          <text x="202.5" y="289" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="18" font-weight="700" fill="#115e59">U<tspan font-size="10" dy="4">a</tspan></text>
+          <text x="202.5" y="309" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#6b7280">n × 2n</text>
+        </g>
+
+        <line x1="145" y1="122" x2="158" y2="122" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrNet)"/>
+        <line x1="145" y1="292" x2="158" y2="292" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrNet)"/>
+        <path d="M245 122 C260 122 260 180 273 190" fill="none" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrNet)"/>
+        <path d="M245 292 C260 292 260 234 273 224" fill="none" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrNet)"/>
+        <text x="255" y="103" font-size="9.5" fill="#6366f1">W<tspan font-size="7" dy="2">a</tspan><tspan dy="-2">s</tspan></text>
+        <text x="255" y="317" font-size="9.5" fill="#0f766e">U<tspan font-size="7" dy="2">a</tspan><tspan dy="-2">h</tspan></text>
+
+        <g>
+          <rect x="275" y="175" width="145" height="70" rx="11" fill="#f8f7ff" stroke="#dcd8ff"/>
+          <text x="347.5" y="202" text-anchor="middle" font-family="ui-monospace,monospace" font-size="11.5" font-weight="700" fill="#312e81">z = W<tspan font-size="8" dy="2">a</tspan><tspan dy="-2">s + U</tspan><tspan font-size="8" dy="2">a</tspan><tspan dy="-2">h</tspan></text>
+          <text x="347.5" y="224" text-anchor="middle" font-size="9.5" fill="#6b7280">先逐元素相加 · n 维</text>
+        </g>
+
+        <line x1="420" y1="210" x2="442" y2="210" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrNet)"/>
+
+        <g>
+          <rect x="445" y="175" width="95" height="70" rx="11" fill="#fff" stroke="#d6d9ee"/>
+          <text x="492.5" y="203" text-anchor="middle" font-family="ui-monospace,monospace" font-size="14" font-weight="700" fill="#312e81">tanh(z)</text>
+          <text x="492.5" y="224" text-anchor="middle" font-size="9.5" fill="#6b7280">逐元素 · n 维</text>
+        </g>
+
+        <line x1="540" y1="210" x2="557" y2="210" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrNet)"/>
+
+        <g>
+          <rect x="560" y="175" width="75" height="70" rx="11" fill="#fff" stroke="#d6d9ee"/>
+          <text x="597.5" y="203" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#312e81">v<tspan font-size="9" dy="4">a</tspan><tspan dy="-4">⊤</tspan></text>
+          <text x="597.5" y="224" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#6b7280">1 × n</text>
+        </g>
+
+        <line x1="635" y1="210" x2="657" y2="210" stroke="#818cf8" stroke-width="1.8" marker-end="url(#arrNet)"/>
+
+        <g>
+          <rect x="660" y="175" width="100" height="70" rx="11" fill="#fff7ed" stroke="#fed7aa"/>
+          <text x="710" y="203" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#9a3412">e<tspan font-size="9" dy="4">tj</tspan></text>
+          <text x="710" y="224" text-anchor="middle" font-size="9.5" fill="#9a6b45">标量分数</text>
+        </g>
+
+        <text x="430" y="401" text-anchor="middle" font-size="10.5" fill="#6b7280">同一套 W<tspan font-size="8" dy="2">a</tspan><tspan dy="-2">、U</tspan><tspan font-size="8" dy="2">a</tspan><tspan dy="-2">、v</tspan><tspan font-size="8" dy="2">a</tspan><tspan dy="-2"> 被所有 (t, j) 复用；每次只是换入不同的 s 和 h。</tspan></text>
+      </svg>
+    </div>
+    <figcaption><b>公式 2.2 的网络视角。</b>先分别做 <span class="m">W</span><sub>a</sub><span class="m">s</span><sub>t−1</sub> 和 <span class="m">U</span><sub>a</sub><span class="m">h</span><sub>j</sub> 两个线性投影，在同一个 <span class="m">n</span> 维空间相加，经过 <span class="m">tanh</span> 隐层，最后由 <span class="m">v</span><sub>a</sub><sup>⊤</sup> 输出一个标量。它不是两个独立网络，而是两条输入支路共享同一个打分头。</figcaption>
+  </figure>
 
   <div class="grid2">
     <div class="card">
@@ -2037,11 +2361,14 @@ details p{margin:0;font-size:14px;color:var(--ink2)}
 
   /* ---------- 进度条 ---------- */
   var progress = document.getElementById('progress');
-  function updateProgress(){
+  var maxScroll = 0;
+  function measureScroll(){
     var doc = document.documentElement;
-    var max = doc.scrollHeight - doc.clientHeight;
-    var p = max > 0 ? (doc.scrollTop / max) * 100 : 0;
-    if (progress) progress.style.width = p.toFixed(2) + '%';
+    maxScroll = Math.max(0, doc.scrollHeight - doc.clientHeight);
+  }
+  function updateProgress(){
+    var p = maxScroll > 0 ? Math.min(1, Math.max(0, window.scrollY / maxScroll)) : 0;
+    if (progress) progress.style.transform = 'scaleX(' + p.toFixed(4) + ')';
   }
 
   /* ---------- 目录高亮 ---------- */
@@ -2050,16 +2377,24 @@ details p{margin:0;font-size:14px;color:var(--ink2)}
     var id = a.getAttribute('href');
     return id && id.charAt(0) === '#' ? document.querySelector(id) : null;
   }).filter(Boolean);
+  var targetTops = [];
+  var lastActiveHref = null;
+
+  function measureTargets(){
+    var y = window.scrollY;
+    targetTops = targets.map(function(t){ return t.getBoundingClientRect().top + y; });
+  }
 
   function updateSpy(){
     var y = window.scrollY + 150;
     var active = targets[0];
     for (var i = 0; i < targets.length; i++){
-      var top = targets[i].getBoundingClientRect().top + window.scrollY;
-      if (top <= y) active = targets[i];
+      if (targetTops[i] <= y) active = targets[i];
     }
     if (!active) return;
     var activeHref = '#' + active.id;
+    if (activeHref === lastActiveHref) return;
+    lastActiveHref = activeHref;
     var activeLink = null;
     tocLinks.forEach(function(a){
       var on = a.getAttribute('href') === activeHref;
@@ -2084,10 +2419,19 @@ details p{margin:0;font-size:14px;color:var(--ink2)}
       ticking = false;
     });
   }
+  function refreshScrollState(){
+    measureScroll();
+    measureTargets();
+    lastActiveHref = null;
+    updateProgress();
+    updateSpy();
+  }
   window.addEventListener('scroll', onScroll, {passive:true});
-  window.addEventListener('resize', onScroll);
-  updateProgress();
-  updateSpy();
+  window.addEventListener('load', refreshScrollState);
+  document.addEventListener('toggle', function(e){
+    if (e.target && e.target.tagName === 'DETAILS') refreshScrollState();
+  }, true);
+  refreshScrollState();
 
   /* ---------- 对齐演示 ---------- */
   var SOURCE = ['The','cat','sat','on','the','mat'];
@@ -2254,11 +2598,15 @@ details p{margin:0;font-size:14px;color:var(--ink2)}
     drawPECurves();
   }
   drawPE();
+  refreshScrollState();
 
   var resizeTimer = null;
   window.addEventListener('resize', function(){
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(drawPE, 180);
+    resizeTimer = setTimeout(function(){
+      drawPE();
+      refreshScrollState();
+    }, 180);
   });
 })();
 </script>
